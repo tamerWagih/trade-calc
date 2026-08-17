@@ -1,0 +1,729 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trade Calculator</title>
+<style>
+  :root {
+    --bg:#12151c; --card:#1a1f2a; --sunk:#0d1016; --fg:#e6e9ef; --mute:#7d8799;
+    --acc:#3ddc97; --bad:#ff5c7a; --warn:#ffb454; --line:#2a3242;
+  }
+  * { box-sizing:border-box }
+  body { margin:0; min-height:100vh; padding:28px 16px; background:var(--bg);
+         color:var(--fg); font:14px "Segoe UI",system-ui,sans-serif;
+         display:flex; flex-direction:column; align-items:center }
+  main { width:100%; max-width:780px }
+
+  /* tabs */
+  nav { display:flex; gap:4px; margin-bottom:10px }
+  nav button { background:none; border:0; border-radius:6px 6px 0 0; cursor:pointer;
+               color:var(--mute); font:600 13px "Segoe UI",system-ui,sans-serif; padding:9px 20px }
+  nav button:hover { color:var(--fg) }
+  nav button[aria-selected=true] { background:var(--card); color:var(--acc) }
+  section[hidden] { display:none }
+
+  .wrap { display:flex; gap:10px; flex-wrap:wrap; align-items:stretch }
+  .card { background:var(--card); padding:18px 20px; border-radius:8px }
+  .in  { flex:1 1 250px; display:flex; flex-direction:column }
+  .out { flex:1 1 340px }
+  .in > .hint:last-child { margin-top:auto; padding-top:14px }   /* pin the note to the bottom */
+
+  label { display:flex; align-items:center; gap:10px; margin-bottom:9px }
+  label span { color:var(--mute); font-size:12px; width:106px; flex:none }
+  input[type=text] { flex:1; min-width:0; background:var(--sunk); color:var(--fg);
+          border:1px solid transparent; border-radius:4px; padding:7px 9px;
+          text-align:right; font:15px Consolas,monospace; outline:0 }
+  input[type=text]:focus { border-color:var(--acc) }
+  input[type=text]:disabled { opacity:.35 }
+  input.bad { border-color:var(--bad) }
+  input[type=checkbox] { accent-color:var(--acc); width:15px; height:15px;
+                         flex:none; cursor:pointer; margin:0 }
+  hr { border:0; border-top:1px solid var(--line); margin:14px 0 12px }
+  .hint { color:var(--mute); font-size:11px; margin:0 }
+
+  #side { font-weight:700; color:var(--mute); font-size:13px; letter-spacing:.06em }
+  #value, #rLeft, #gFinal { font:700 34px Consolas,monospace; color:var(--acc);
+           margin:2px 0 0; transition:color .15s }
+  #rSide, #gSide { font-weight:700; color:var(--mute); font-size:13px }
+  .row { display:flex; justify-content:space-between; align-items:baseline; padding:3px 0 }
+  .row span { color:var(--mute); font-size:12px }
+  .row b { font:700 14px Consolas,monospace }
+  .row.big b { font-size:19px }
+  #warn { color:var(--warn); font-size:12px; white-space:pre-line; margin:10px 0 0 }
+
+  .btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:16px }
+  button.act { background:var(--line); color:var(--fg); border:0; border-radius:5px;
+               cursor:pointer; font:700 12px "Segoe UI",system-ui,sans-serif; padding:9px 14px }
+  button.act:hover { filter:brightness(1.35) }
+  button.act:disabled { opacity:.35; cursor:default; filter:none }
+  button.act.win  { background:#1f4d3a; color:var(--acc) }
+  button.act.lose { background:#4d2030; color:var(--bad) }
+
+  /* journal */
+  #stats { display:flex; flex-wrap:wrap; gap:22px 34px; margin-bottom:4px }
+  #stats div { display:flex; flex-direction:column; gap:3px }
+  #stats span { color:var(--mute); font-size:11px }
+  #stats b { font:700 19px Consolas,monospace }
+  #curve { width:100%; height:90px; display:block; margin:14px 0 4px }
+  table { width:100%; border-collapse:collapse; font:12px Consolas,monospace }
+  th { color:var(--mute); font:600 11px "Segoe UI",system-ui,sans-serif; text-align:right;
+       padding:6px 8px; border-bottom:1px solid var(--line) }
+  td { padding:5px 8px; text-align:right; border-bottom:1px solid #161b24 }
+  .jt th:nth-child(-n+3), .jt td:nth-child(-n+3) { text-align:left }
+  tbody tr:hover { background:#202633 }
+  .scroll { max-height:300px; overflow:auto }
+  .xscroll { overflow-x:auto }                 /* narrow screens: tables scroll, page does not */
+  .xscroll table { min-width:520px }
+  .scroll thead th { position:sticky; top:0; background:var(--card) }
+  tr.year td { border-bottom:1px solid var(--line) }
+  tr.year td:first-child { color:var(--acc) }
+  .good { color:var(--acc) } .mid { color:var(--warn) } .risky { color:var(--bad) }
+  td.del { width:26px; padding:0; text-align:center }
+  td.del button { background:none; border:0; color:var(--mute); cursor:pointer;
+                  font-size:14px; padding:4px 6px; line-height:1 }
+  td.del button:hover { color:var(--bad) }
+  .WIN { color:var(--acc) } .LOSS { color:var(--bad) }
+  #empty { color:var(--mute); padding:26px 0; text-align:center }
+</style>
+
+<main>
+  <nav>
+    <button id="tabTrade"  aria-selected="true"  onclick="show(0)">Trade</button>
+    <button id="tabLog"    aria-selected="false" onclick="show(1)">Journal</button>
+    <button id="tabRisk"   aria-selected="false" onclick="show(2)">Losing run</button>
+    <button id="tabGrowth" aria-selected="false" onclick="show(3)">Compounding</button>
+  </nav>
+
+  <!-- ---------- trade ---------- -->
+  <section id="secTrade">
+    <div class="wrap">
+      <div class="card in">
+        <label><span>Symbol</span>        <input type="text" id="symbol" value="SOLUSDT"></label>
+        <label><span>Risk USDT</span>     <input type="text" id="risk" value="5"></label>
+        <label><span>Price now</span>     <input type="text" id="price" autofocus></label>
+        <label><span>Stop loss</span>     <input type="text" id="sl"></label>
+        <label><span>Reward : risk</span> <input type="text" id="rr" value="2:1"></label>
+        <hr>
+        <label><span>Max margin</span>    <input type="text" id="mm" value="500"></label>
+        <p class="hint" style="text-align:right">leverage kicks in above this</p>
+        <label style="margin-top:9px"><span>Fee % per side</span><input type="text" id="fee" value="0.05"></label>
+      </div>
+
+      <div class="card out">
+        <div id="side">fill risk, price and stop loss</div>
+        <p id="value">-</p>
+        <p class="hint">enter this much in USDT</p>
+        <hr>
+        <div class="row big"><span>Take profit</span> <b id="tp"  style="color:var(--acc)">-</b></div>
+        <div class="row">    <span>Quantity</span>    <b id="qty" style="color:var(--acc)">-</b></div>
+        <div class="row">    <span>Leverage</span>    <b id="lev" style="color:var(--warn)">-</b></div>
+        <div class="row">    <span>Margin used</span> <b id="mgn">-</b></div>
+        <hr>
+        <div class="row"><span>Stop distance</span><b id="stop">-</b></div>
+        <div class="row"><span>If it wins</span>   <b id="win"  style="color:var(--acc)">-</b></div>
+        <div class="row"><span>If it loses</span>  <b id="lose" style="color:var(--bad)">-</b></div>
+        <p id="warn"></p>
+        <div class="btns">
+          <button class="act"      id="bCopy" onclick="copyQty(this)">Copy qty</button>
+          <button class="act win"  id="bWin"  onclick="log(true)">Log WIN</button>
+          <button class="act lose" id="bLose" onclick="log(false)">Log LOSS</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- journal ---------- -->
+  <section id="secLog" hidden>
+    <div class="card">
+      <div id="stats"></div>
+      <svg id="curve" preserveAspectRatio="none" viewBox="0 0 400 90"></svg>
+      <div class="xscroll">
+        <table class="jt">
+          <thead><tr>
+            <th>date</th><th>symbol</th><th>side</th><th>entry</th><th>tp</th>
+            <th>risk</th><th>pnl</th><th>R</th><th>result</th><th></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p id="empty">no trades logged yet</p>
+      <div class="btns">
+        <button class="act" onclick="exportCsv()">Export CSV</button>
+        <button class="act" onclick="file.click()">Import CSV</button>
+        <input type="file" id="file" accept=".csv" hidden onchange="importCsv(this)">
+        <button class="act" style="margin-left:auto" onclick="clearAll()">Clear all</button>
+      </div>
+      <p class="hint" id="storeHint" style="margin-top:10px">
+        Saved in this browser only. Export a CSV now and then so a cleared browser
+        cannot take the journal with it.</p>
+    </div>
+  </section>
+
+  <!-- ---------- losing run ---------- -->
+  <section id="secRisk" hidden>
+    <div class="wrap">
+      <div class="card in">
+        <label><span>Capital USDT</span>    <input type="text" id="rCap" value="1000"></label>
+        <label><span>Risk % per trade</span><input type="text" id="rPct" value="1"></label>
+        <label><span>Losses in a row</span> <input type="text" id="rN"   value="20"></label>
+        <p class="hint">Risk is taken off whatever is left, not off the starting
+          capital, so each loss is smaller than the one before it.</p>
+      </div>
+      <div class="card out">
+        <div id="rSide">still standing after 20 losses</div>
+        <p id="rLeft">-</p>
+        <p class="hint">left of the capital you started with</p>
+        <hr>
+        <div class="row big"><span>Balance</span>           <b id="rBal">-</b></div>
+        <div class="row">    <span>Lost</span>              <b id="rLost" style="color:var(--bad)">-</b></div>
+        <div class="row">    <span>Gain needed to recover</span><b id="rBack" style="color:var(--warn)">-</b></div>
+        <svg id="rCurve" preserveAspectRatio="none" viewBox="0 0 400 90"></svg>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <p class="hint" style="margin:0 0 8px">Percent of capital still left, by risk per trade</p>
+      <div class="xscroll"><table id="rMatrix"></table></div>
+      <hr>
+      <p class="hint" style="margin:0 0 8px">Loss by loss, at your settings above</p>
+      <div class="scroll xscroll">
+        <table>
+          <thead><tr><th>loss</th><th>balance</th><th>% left</th><th>drawdown</th><th>gain to recover</th></tr></thead>
+          <tbody id="rRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- compounding ---------- -->
+  <section id="secGrowth" hidden>
+    <div class="wrap">
+      <div class="card in">
+        <label><span>Capital USDT</span> <input type="text" id="gCap"    value="1000"></label>
+        <label><span>Gain % / month</span><input type="text" id="gPct"   value="5"></label>
+        <label><span>Months</span>       <input type="text" id="gMonths" value="36"></label>
+        <hr>
+        <label><span>Cap trading at</span>
+          <input type="checkbox" id="gCapOn">
+          <input type="text" id="gCapAt" value="20000" disabled>
+        </label>
+        <p class="hint" style="text-align:right">anything above this is taken off the table</p>
+        <p class="hint">36 months is 3 years. With no cap every month's gain is left
+          in to compound. With a cap the account stops growing at that size and the
+          profit above it is banked instead, so it stops compounding and goes flat.</p>
+      </div>
+      <div class="card out">
+        <div id="gSide">after 36 months</div>
+        <p id="gFinal">-</p>
+        <p class="hint">balance if every month hits the target</p>
+        <hr>
+        <div class="row big"><span>Multiple of start</span><b id="gX" style="color:var(--acc)">-</b></div>
+        <div class="row">    <span>Profit</span>          <b id="gGain" style="color:var(--acc)">-</b></div>
+        <div class="row" id="gTradedRow" hidden><span>Still trading</span><b id="gTraded">-</b></div>
+        <div class="row" id="gBankedRow" hidden><span>Banked</span><b id="gBanked" style="color:var(--acc)">-</b></div>
+        <div class="row" id="gYearRow"><span>Same as per year</span><b id="gYear" style="color:var(--warn)">-</b></div>
+        <svg id="gCurve" preserveAspectRatio="none" viewBox="0 0 400 90"></svg>
+        <p id="gNote" class="hint"></p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <div class="scroll xscroll">
+        <table>
+          <thead><tr>
+            <th>month</th><th>balance</th><th>profit</th>
+            <th class="capCol" hidden>trading</th><th class="capCol" hidden>banked</th>
+            <th>multiple</th>
+          </tr></thead>
+          <tbody id="gRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const FEE = 0.05, MIN_NOTIONAL = 5, MAX_LEV = 125, LIQ_SAFETY = 0.7;
+const COLS = ["date","symbol","side","entry","sl","tp","value","risk","pnl","r","result"];
+const KEY_IN = "tradeCalc.inputs", KEY_TR = "tradeCalc.trades";
+
+/* ---------- math (pure, self-checked at the bottom) ---------- */
+
+function plan(price, sl, risk, rr, maxMargin, feePct = FEE) {
+  if (!(price > 0 && sl > 0)) throw Error("price and stop loss must be positive");
+  if (price === sl) throw Error("stop loss cannot equal the entry price");
+  if (!(risk > 0 && rr > 0)) throw Error("risk and reward ratio must be positive");
+  const f = feePct / 100, side = sl < price ? "LONG" : "SHORT", stop = Math.abs(price - sl);
+  const qty = risk / (stop + (price + sl) * f);         // loss at stop + both fees == risk
+  const value = qty * price;
+  const lev = maxMargin > 0 ? Math.max(1, Math.ceil(value / maxMargin)) : 1;
+  const tp = side === "LONG" ? price + rr * stop : price - rr * stop;
+  const profit = qty * Math.abs(tp - price) - (price + tp) * qty * f;
+  const stopPct = stop / price * 100, warns = [];
+  if (lev > 1 && stopPct > LIQ_SAFETY * 100 / lev)
+    warns.push(`stop sits near liquidation at ${lev}x - raise max margin`);
+  if (lev > MAX_LEV) warns.push(`needs ${lev}x leverage - above the exchange maximum`);
+  if (value < MIN_NOTIONAL) warns.push(`order value is below the ${MIN_NOTIONAL} USDT minimum`);
+  if (tp <= 0) warns.push("reward ratio is too large for this price");
+  return { side, qty, value, lev, margin: value / lev, tp, profit, stopPct, risk, warns };
+}
+
+function stats(trades) {
+  const rs = trades.map(t => +t.r);
+  if (!rs.length) return null;
+  let run = 0, peak = 0, mdd = 0;
+  for (const x of rs) { run += x; peak = Math.max(peak, run); mdd = Math.min(mdd, run - peak); }
+  const lastWon = rs[rs.length - 1] > 0;
+  let streak = 0;
+  for (let i = rs.length - 1; i >= 0 && (rs[i] > 0) === lastWon; i--) streak++;
+  return {
+    n: rs.length,
+    winRate: rs.filter(x => x > 0).length / rs.length * 100,
+    net: trades.reduce((s, t) => s + +t.pnl, 0),
+    totalR: run, avgR: run / rs.length, mdd, streak, lastWon,
+  };
+}
+
+function losingRun(capital, riskPct, n) {
+  if (!(capital > 0)) throw Error("capital must be positive");
+  if (!(riskPct > 0 && riskPct < 100)) throw Error("risk must be between 0 and 100 percent");
+  if (!(n >= 1)) throw Error("need at least one loss");
+  const rows = [];
+  let eq = capital;
+  for (let i = 1; i <= Math.min(n, 500); i++) {
+    eq *= 1 - riskPct / 100;                  // the risk comes off what is left, not off the start
+    rows.push({ n: i, equity: eq, left: eq / capital * 100,
+                dd: (1 - eq / capital) * 100, back: (capital / eq - 1) * 100 });
+  }
+  return rows;
+}
+
+/* cap = 0 for none. Above the cap the account stops growing: the trading balance is
+   held at the cap and every month's profit is banked instead of compounded. */
+function growth(capital, monthPct, months, cap = 0) {
+  if (!(capital > 0)) throw Error("capital must be positive");
+  if (!(monthPct > -100)) throw Error("a month cannot lose more than everything");
+  if (!(months >= 1)) throw Error("need at least one month");
+  if (cap && !(cap > 0)) throw Error("the cap must be positive");
+  const rows = [];
+  let traded = cap ? Math.min(capital, cap) : capital;
+  let banked = cap ? capital - traded : 0;
+  for (let m = 1; m <= Math.min(months, 600); m++) {
+    traded *= 1 + monthPct / 100;
+    if (cap && traded > cap) { banked += traded - cap; traded = cap; }
+    const equity = traded + banked;
+    rows.push({ m, equity, traded, banked, gain: equity - capital, x: equity / capital });
+  }
+  return rows;
+}
+
+const dec = p => p <= 0 ? 4 : Math.max(0, Math.min(6, 5 - Math.floor(Math.log10(p))));
+const $ = id => document.getElementById(id);
+const num = (n, d) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/* ---------- trade tab ---------- */
+
+const INPUTS = ["symbol", "risk", "price", "sl", "rr", "mm", "fee"];
+const SAVED = ["symbol", "risk", "rr", "mm", "fee"];   // price/sl are per trade
+let last = null;
+
+function calc() {
+  const price = +$("price").value;
+  try {
+    last = plan(price, +$("sl").value, +$("risk").value,
+                parseFloat($("rr").value), +$("mm").value || 0, +$("fee").value);
+  } catch {
+    last = null;
+    $("value").textContent = "-";
+    $("side").textContent = "fill risk, price and stop loss";
+    $("side").style.color = "var(--mute)";
+    "tp qty lev mgn stop win lose".split(" ").forEach(k => $(k).textContent = "-");
+    $("warn").textContent = "";
+  }
+  if (last) {
+    const p = last;
+    $("side").textContent = p.side;
+    $("side").style.color = p.side === "LONG" ? "var(--acc)" : "var(--bad)";
+    $("value").textContent = num(p.value, 2);
+    $("tp").textContent   = num(p.tp, price > 100 ? dec(price) - 2 : 4);
+    $("qty").textContent  = num(p.qty, dec(price));
+    $("lev").textContent  = p.lev + "x";
+    $("mgn").textContent  = num(p.margin, 2) + " USDT";
+    $("stop").textContent = p.stopPct.toFixed(2) + " %";
+    $("win").textContent  = "+" + num(p.profit, 2) + " USDT";
+    $("lose").textContent = "-" + num(p.risk, 2) + " USDT";
+    $("warn").textContent = p.warns.map(w => "! " + w).join("\n");
+  }
+  // red-outline whichever field is blocking the calc, once something is typed
+  for (const k of ["price", "sl", "risk", "rr"]) {
+    const el = $(k), typed = el.value.trim() !== "";
+    el.classList.toggle("bad", typed && !last);
+  }
+  for (const b of ["bCopy", "bWin", "bLose"]) $(b).disabled = !last;
+  try { localStorage[KEY_IN] = JSON.stringify(SAVED.map(k => $(k).value)); }
+  catch (e) { warnNoStorage(e); }        // a blocked store must not break the calculator
+}
+
+function copyQty(btn) {
+  if (!last) return;
+  navigator.clipboard.writeText(last.qty.toFixed(dec(+$("price").value)));
+  btn.textContent = "Copied";
+  setTimeout(() => btn.textContent = "Copy qty", 1200);
+}
+
+function log(won) {
+  if (!last) return;
+  const pnl = won ? last.profit : -last.risk;
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  trades.push({
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    symbol: $("symbol").value.toUpperCase().trim(), side: last.side,
+    entry: $("price").value.trim(), sl: $("sl").value.trim(),
+    tp: String(+last.tp.toFixed(8)), value: last.value.toFixed(2),
+    risk: last.risk.toFixed(2), pnl: (pnl >= 0 ? "+" : "") + pnl.toFixed(2),
+    r: (pnl / last.risk).toFixed(2), result: won ? "WIN" : "LOSS",
+  });
+  save();
+  $("price").value = $("sl").value = "";       // clear for the next trade
+  calc();
+  $("price").focus();
+}
+
+/* ---------- journal tab ---------- */
+
+let trades = [];
+try { trades = JSON.parse(localStorage[KEY_TR] || "[]"); } catch { trades = []; }
+
+function save() {
+  try { localStorage[KEY_TR] = JSON.stringify(trades); }
+  catch (e) { warnNoStorage(e); }        // never silently lose a logged trade
+  refresh();
+}
+
+function warnNoStorage(e) {
+  const p = $("storeHint");
+  if (p.dataset.dead) return;
+  p.dataset.dead = "1";
+  p.style.color = "var(--warn)";
+  p.textContent = "! This browser is not saving the journal (" + (e && e.name || "blocked") +
+    "). The trades below live only until you close the tab - Export CSV before you do.";
+}
+
+function del(i) {
+  if (confirm(`Delete the ${trades[i].symbol} trade from ${trades[i].date}?`)) {
+    trades.splice(i, 1);
+    save();
+  }
+}
+
+function clearAll() {
+  if (trades.length && confirm(`Delete all ${trades.length} trades? Export first if unsure.`)) {
+    trades = [];
+    save();
+  }
+}
+
+function refresh() {
+  const tb = $("rows");
+  tb.innerHTML = "";
+  trades.forEach((t, i) => {
+    const tr = tb.insertRow(0);                        // newest on top
+    tr.className = t.result;
+    for (const v of [t.date, t.symbol, t.side, t.entry, t.tp, t.risk, t.pnl, t.r, t.result])
+      tr.insertCell().textContent = v;
+    const c = tr.insertCell();
+    c.className = "del";
+    c.innerHTML = `<button title="delete" onclick="del(${i})">&times;</button>`;
+  });
+  $("empty").hidden = trades.length > 0;
+
+  const s = stats(trades);
+  $("stats").innerHTML = !s ? "" : [
+    ["trades", s.n, ""],
+    ["win rate", s.winRate.toFixed(0) + "%", ""],
+    ["net", (s.net >= 0 ? "+" : "") + num(s.net, 2), s.net >= 0 ? "WIN" : "LOSS"],
+    ["total", (s.totalR >= 0 ? "+" : "") + s.totalR.toFixed(2) + "R", s.totalR >= 0 ? "WIN" : "LOSS"],
+    ["average", (s.avgR >= 0 ? "+" : "") + s.avgR.toFixed(2) + "R", s.avgR >= 0 ? "WIN" : "LOSS"],
+    ["worst drawdown", s.mdd.toFixed(2) + "R", ""],
+    ["streak", s.streak + (s.lastWon ? " won" : " lost"), s.lastWon ? "WIN" : "LOSS"],
+  ].map(([k, v, cls]) => `<div><span>${k}</span><b class="${cls}">${v}</b></div>`).join("");
+
+  drawCurve();
+}
+
+function drawCurve() {
+  let run = 0;
+  spark($("curve"), trades.length < 2 ? [] : [0, ...trades.map(t => run += +t.r)]);
+}
+
+/* one line chart, used by the journal, the losing run and the compounding tab */
+function spark(sv, pts) {
+  if (pts.length < 2) { sv.innerHTML = ""; return; }
+  const lo = Math.min(...pts), hi = Math.max(...pts), span = (hi - lo) || 1;
+  const x = i => 4 + i * 392 / (pts.length - 1);
+  const y = v => 82 - (v - lo) / span * 72;
+  const line = pts.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const col = pts[pts.length - 1] >= pts[0] ? "var(--acc)" : "var(--bad)";
+  const zero = lo < 0 && hi > 0
+    ? `<polyline points="4,${y(0).toFixed(1)} 396,${y(0).toFixed(1)}"
+                 fill="none" stroke="var(--line)" stroke-dasharray="3 3"/>` : "";
+  sv.innerHTML = zero + `
+    <polygon points="${line} ${x(pts.length - 1).toFixed(1)},${y(lo)} 4,${y(lo)}"
+             fill="${col}" opacity=".10"/>
+    <polyline points="${line}" fill="none" stroke="${col}" stroke-width="2"
+              vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+}
+
+/* ---------- losing run tab ---------- */
+
+const RISKS = [0.5, 1, 2, 3, 5, 10];          // % per trade, down the matrix
+const STREAKS = [5, 10, 15, 20, 30, 50];      // losses in a row, across it
+
+function calcRisk() {
+  let rows;
+  try {
+    rows = losingRun(+$("rCap").value, +$("rPct").value, +$("rN").value);
+  } catch {
+    $("rLeft").textContent = "-";
+    $("rSide").textContent = "fill capital, risk and a number of losses";
+    ["rBal", "rLost", "rBack"].forEach(k => $(k).textContent = "-");
+    $("rRows").innerHTML = "";
+    spark($("rCurve"), []);
+    return;
+  }
+  const cap = +$("rCap").value, e = rows[rows.length - 1];
+  $("rSide").textContent = `still standing after ${rows.length} losses in a row`;
+  $("rLeft").textContent = e.left.toFixed(1) + " %";
+  $("rLeft").style.color = e.left > 80 ? "var(--acc)" : e.left > 50 ? "var(--warn)" : "var(--bad)";
+  $("rBal").textContent  = num(e.equity, 2) + " USDT";
+  $("rLost").textContent = "-" + num(cap - e.equity, 2) + " USDT  (" + e.dd.toFixed(1) + "%)";
+  $("rBack").textContent = "+" + e.back.toFixed(1) + " %";
+  spark($("rCurve"), [cap, ...rows.map(r => r.equity)]);
+
+  $("rRows").innerHTML = rows.map(r =>
+    `<tr><td>${r.n}</td><td>${num(r.equity, 2)}</td>` +
+    `<td class="${cls(r.left)}">${r.left.toFixed(1)}%</td>` +
+    `<td>-${r.dd.toFixed(1)}%</td><td>+${r.back.toFixed(1)}%</td></tr>`).join("");
+
+  $("rMatrix").innerHTML =
+    `<thead><tr><th style="text-align:left">risk / trade</th>` +
+    STREAKS.map(s => `<th>${s} losses</th>`).join("") + `</tr></thead><tbody>` +
+    RISKS.map(p => {
+      const mine = Math.abs(p - +$("rPct").value) < 1e-9;
+      return `<tr><td style="text-align:left${mine ? ";color:var(--acc)" : ""}">` +
+        `${p}%${mine ? "  <" : ""}</td>` +
+        STREAKS.map(s => {
+          const left = Math.pow(1 - p / 100, s) * 100;
+          return `<td class="${cls(left)}">${left.toFixed(1)}%</td>`;
+        }).join("") + `</tr>`;
+    }).join("") + `</tbody>`;
+}
+
+const cls = left => left > 80 ? "good" : left > 50 ? "mid" : "risky";
+
+/* ---------- compounding tab ---------- */
+
+function calcGrowth() {
+  const capped = $("gCapOn").checked;
+  $("gCapAt").disabled = !capped;
+  document.querySelectorAll(".capCol").forEach(th => th.hidden = !capped);
+  $("gTradedRow").hidden = $("gBankedRow").hidden = !capped;
+  $("gYearRow").hidden = capped;             // once capped the yearly rate stops being the return
+
+  let rows;
+  try {
+    rows = growth(+$("gCap").value, +$("gPct").value, +$("gMonths").value,
+                  capped ? +$("gCapAt").value : 0);
+  } catch {
+    $("gFinal").textContent = "-";
+    $("gSide").textContent = "fill capital, monthly gain and months";
+    ["gX", "gGain", "gYear"].forEach(k => $(k).textContent = "-");
+    $("gRows").innerHTML = "";
+    $("gNote").textContent = "";
+    spark($("gCurve"), []);
+    return;
+  }
+  const cap = +$("gCap").value, p = +$("gPct").value, e = rows[rows.length - 1];
+  const years = rows.length / 12, yearly = (Math.pow(1 + p / 100, 12) - 1) * 100;
+  $("gSide").textContent = `after ${rows.length} months` +
+    (rows.length >= 12 ? ` (${years.toFixed(years % 1 ? 1 : 0)} years)` : "");
+  $("gFinal").textContent = num(e.equity, 2);
+  $("gFinal").style.color = e.equity >= cap ? "var(--acc)" : "var(--bad)";
+  $("gX").textContent    = e.x.toFixed(e.x >= 100 ? 0 : 2) + " x";
+  $("gGain").textContent = (e.gain >= 0 ? "+" : "") + num(e.gain, 2) + " USDT";
+  $("gYear").textContent = (yearly >= 0 ? "+" : "") + yearly.toFixed(1) + " % / year";
+  $("gTraded").textContent = num(e.traded, 2) + " USDT";
+  $("gBanked").textContent = num(e.banked, 2) + " USDT";
+
+  const hit = capped ? rows.find(r => r.banked > 0) : null;
+  $("gNote").textContent = p <= 0 ? ""
+    : hit
+      ? `The cap is reached in month ${hit.m}. After that the account earns the same `
+        + `${num(+$("gCapAt").value * p / 100, 0)} USDT every month instead of compounding.`
+      : `${p}% a month compounds to ${yearly.toFixed(0)}% a year. Straight-line growth `
+        + `like this is what the maths says, not what a year of trading looks like.`;
+  spark($("gCurve"), [cap, ...rows.map(r => r.equity)]);
+
+  $("gRows").innerHTML = rows.map(r =>
+    `<tr class="${r.m % 12 === 0 ? "year" : ""}"><td>${r.m}</td>` +
+    `<td>${num(r.equity, 2)}</td><td>${(r.gain >= 0 ? "+" : "") + num(r.gain, 2)}</td>` +
+    (capped ? `<td>${num(r.traded, 2)}</td><td>${num(r.banked, 2)}</td>` : "") +
+    `<td>${r.x.toFixed(2)} x</td></tr>`).join("");
+}
+
+/* ---------- csv ---------- */
+
+const q = v => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
+
+function exportCsv() {
+  const csv = [COLS.join(","), ...trades.map(t => COLS.map(c => q(t[c] ?? "")).join(","))].join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv" }));
+  a.download = "trades.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [], cell = "", quoted = false;
+  text = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c !== '"') cell += c;
+      else if (text[i + 1] === '"') { cell += '"'; i++; }
+      else quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  const head = rows.shift() || [];
+  return rows.filter(r => r.some(v => v !== ""))
+             .map(r => Object.fromEntries(head.map((h, i) => [h.trim(), (r[i] ?? "").trim()])));
+}
+
+function importCsv(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const rows = parseCsv(rd.result).filter(r => r.r && r.result);
+    if (!rows.length) { alert("No trades found in that file."); return; }
+    // replace, do not merge - a CSV round trip should be exactly what you exported
+    if (trades.length && !confirm(`Replace the ${trades.length} saved trades with ${rows.length} from this file?`)) return;
+    trades = rows.map(r => Object.fromEntries(COLS.map(c => [c, r[c] ?? ""])));
+    save();
+  };
+  rd.readAsText(f);
+  input.value = "";
+}
+
+/* ---------- boot ---------- */
+
+const TABS = [["tabTrade", "secTrade"], ["tabLog", "secLog"],
+              ["tabRisk", "secRisk"], ["tabGrowth", "secGrowth"]];
+
+function show(i) {
+  TABS.forEach(([tab, sec], j) => {
+    $(sec).hidden = i !== j;
+    $(tab).ariaSelected = String(i === j);
+  });
+  if (i === 1) drawCurve();
+}
+
+const val = el => el.type === "checkbox" ? el.checked : el.value;
+
+function restore(keys, key) {
+  try {
+    const v = JSON.parse(localStorage[key] || "null");
+    if (v) keys.forEach((k, i) => {
+      if (v[i] == null) return;
+      if ($(k).type === "checkbox") $(k).checked = !!v[i]; else $(k).value = v[i];
+    });
+  } catch {}
+}
+
+/* restore saved inputs, then recalculate and re-save on every keystroke */
+function wire(keys, key, fn) {
+  restore(keys, key);
+  keys.forEach(k => $(k).oninput = () => {
+    try { localStorage[key] = JSON.stringify(keys.map(x => val($(x)))); }
+    catch (e) { warnNoStorage(e); }
+    fn();
+  });
+  fn();
+}
+
+restore(SAVED, KEY_IN);                      // trade tab: calc() does its own saving
+INPUTS.forEach(k => $(k).oninput = calc);
+wire(["rCap", "rPct", "rN"], "tradeCalc.risk", calcRisk);
+wire(["gCap", "gPct", "gMonths", "gCapOn", "gCapAt"], "tradeCalc.growth", calcGrowth);
+calc();
+refresh();
+
+/* ---------- self-check: same assertions as the python _test(), plus stats ---------- */
+(() => {
+  const ok = (c, m) => { if (!c) throw Error("self-check failed: " + m); };
+  let p = plan(100, 99, 10, 2, 500, 0);
+  ok(p.side === "LONG" && Math.abs(p.qty - 10) < 1e-9, "qty");
+  ok(Math.abs(p.value - 1000) < 1e-9 && Math.abs(p.tp - 102) < 1e-9, "value/tp");
+  ok(p.lev === 2 && Math.abs(p.margin - 500) < 1e-9 && Math.abs(p.profit - 20) < 1e-9, "lev/profit");
+  p = plan(100, 99, 10, 2, 500);
+  ok(Math.abs(p.qty * 1 + 199 * p.qty * FEE / 100 - 10) < 1e-9, "loss with fees == risk");
+  ok(p.profit < 20, "fees must eat the win");
+  p = plan(100, 101, 10, 3, 1e9);
+  ok(p.side === "SHORT" && Math.abs(p.tp - 97) < 1e-9 && p.lev === 1, "short");
+  ok(plan(100, 90, 400, 2, 500).warns.some(w => w.includes("liquidation")), "liq warn");
+  ok(plan(100, 99.9, 10, 2, 500).warns.length === 0, "no false warn");
+  ok(plan(100, 99, 0.02, 2, 500).warns.some(w => w.includes("minimum")), "min notional");
+
+  ok(stats([]) === null, "empty stats");
+  const s = stats([{ r: "2", pnl: "+20" }, { r: "-1", pnl: "-10" }, { r: "-1", pnl: "-10" }]);
+  ok(s.n === 3 && Math.abs(s.totalR) < 1e-9 && Math.abs(s.net) < 1e-9, "totals");
+  ok(Math.abs(s.winRate - 100 / 3) < 1e-9 && Math.abs(s.mdd + 2) < 1e-9, "winrate/mdd");
+  ok(s.streak === 2 && !s.lastWon, "loss streak");
+
+  // 10 losses at 10% leaves 0.9^10, and the gain needed back is the exact inverse
+  const lr = losingRun(1000, 10, 10);
+  ok(lr.length === 10 && Math.abs(lr[9].equity - 1000 * Math.pow(0.9, 10)) < 1e-9, "losing run");
+  ok(Math.abs(lr[9].left - 34.8678440100) < 1e-9 && Math.abs(lr[0].dd - 10) < 1e-9, "left/dd");
+  ok(Math.abs(lr[9].equity * (1 + lr[9].back / 100) - 1000) < 1e-9, "recover is the inverse");
+  ok(lr[9].equity > 0, "compounding down never reaches zero");
+  ok(losingRun(1000, 1, 300).length === 300, "long run allowed");
+  try { losingRun(1000, 100, 5); ok(false, "100% risk must throw"); } catch {}
+  try { losingRun(0, 1, 5); ok(false, "zero capital must throw"); } catch {}
+
+  // 5% a month for 12 months is 1.05^12, and month 12 is the yearly figure
+  const g = growth(1000, 5, 24);
+  ok(g.length === 24 && Math.abs(g[11].x - Math.pow(1.05, 12)) < 1e-12, "growth compounds");
+  ok(Math.abs(g[11].gain - (g[11].equity - 1000)) < 1e-9, "gain is over the start");
+  ok(Math.abs(g[23].equity - 1000 * Math.pow(1.05, 24)) < 1e-9, "two years");
+  ok(growth(1000, -5, 12)[11].equity < 1000, "a losing month compounds down");
+  try { growth(1000, 5, 0); ok(false, "zero months must throw"); } catch {}
+
+  // capped: the traded balance holds at the cap and the profit banks up in a straight line
+  const cg = growth(1000, 10, 12, 1000);
+  ok(cg.every(r => Math.abs(r.traded - 1000) < 1e-9), "traded balance held at the cap");
+  ok(Math.abs(cg[11].banked - 1200) < 1e-9 && Math.abs(cg[11].equity - 2200) < 1e-9, "banked");
+  ok(Math.abs(cg[5].equity - cg[4].equity - 100) < 1e-9, "same profit every month once capped");
+  ok(cg[11].equity < growth(1000, 10, 12)[11].equity, "a cap must earn less than compounding");
+  // a cap under the starting capital banks the excess immediately
+  const under = growth(1000, 10, 1, 500);
+  ok(Math.abs(under[0].traded - 500) < 1e-9 && Math.abs(under[0].equity - 1050) < 1e-9, "cap below start");
+  // the cap only bites once it is reached
+  const late = growth(1000, 5, 24, 2000);
+  ok(late[0].banked === 0 && Math.abs(late[0].equity - 1050) < 1e-9, "under the cap it compounds");
+  ok(late.find(r => r.banked > 0).m === 15, "1.05^15 is the first month over 2000");
+  ok(JSON.stringify(growth(1000, 5, 6, 0).map(r => r.equity)) ===
+     JSON.stringify(growth(1000, 5, 6).map(r => r.equity)), "cap 0 means no cap");
+
+  const c = parseCsv('date,symbol,r\n"2026-01-01 10:00","SOL, spot",1.5\n');
+  ok(c.length === 1 && c[0].symbol === "SOL, spot" && c[0].r === "1.5", "csv quotes");
+  ok(q('a"b,c') === '"a""b,c"', "csv escape");
+  console.log("self-check ok");
+})();
+</script>
