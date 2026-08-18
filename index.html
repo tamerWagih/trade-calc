@@ -318,9 +318,15 @@ function growth(capital, monthPct, months, cap = 0) {
   return rows;
 }
 
-const dec = p => p <= 0 ? 4 : Math.max(0, Math.min(6, 5 - Math.floor(Math.log10(p))));
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+/* a price is quoted to the precision you typed it in, so reuse that for the take profit */
+const priceDec = s => (String(s).split(".")[1] || "").length;
+/* a quantity needs MORE decimals as the price rises: 4 significant figures, always */
+const qtyDec = q => q > 0 ? clamp(3 - Math.floor(Math.log10(q)), 0, 8) : 4;
 const $ = id => document.getElementById(id);
-const num = (n, d) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+/* clamped: Intl throws a RangeError outside 0-20 and would abort the whole render */
+const num = (n, d) => n.toLocaleString("en-US",
+  { minimumFractionDigits: clamp(d, 0, 20), maximumFractionDigits: clamp(d, 0, 20) });
 
 /* ---------- trade tab ---------- */
 
@@ -346,8 +352,8 @@ function calc() {
     $("side").textContent = p.side;
     $("side").style.color = p.side === "LONG" ? "var(--acc)" : "var(--bad)";
     $("value").textContent = num(p.value, 2);
-    $("tp").textContent   = num(p.tp, price > 100 ? dec(price) - 2 : 4);
-    $("qty").textContent  = num(p.qty, dec(price));
+    $("tp").textContent   = num(p.tp, priceDec($("price").value));
+    $("qty").textContent  = num(p.qty, qtyDec(p.qty));
     $("lev").textContent  = p.lev + "x";
     $("mgn").textContent  = num(p.margin, 2) + " USDT";
     $("stop").textContent = p.stopPct.toFixed(2) + " %";
@@ -367,7 +373,7 @@ function calc() {
 
 function copyQty(btn) {
   if (!last) return;
-  navigator.clipboard.writeText(last.qty.toFixed(dec(+$("price").value)));
+  navigator.clipboard.writeText(last.qty.toFixed(qtyDec(last.qty)));
   btn.textContent = "Copied";
   setTimeout(() => btn.textContent = "Copy qty", 1200);
 }
@@ -721,6 +727,22 @@ refresh();
   ok(late.find(r => r.banked > 0).m === 15, "1.05^15 is the first month over 2000");
   ok(JSON.stringify(growth(1000, 5, 6, 0).map(r => r.equity)) ===
      JSON.stringify(growth(1000, 5, 6).map(r => r.equity)), "cap 0 means no cap");
+
+  // BTC-priced trades used to abort the whole render: dec(price)-2 went negative
+  // and Intl threw a RangeError, freezing every readout on the previous keystroke.
+  const btc = plan(64750, 65500, 5, 2, 500);
+  ok(btc.side === "SHORT" && Math.abs(btc.tp - 63250) < 1e-9, "btc short tp");
+  ok(Math.abs(btc.stopPct - 750 / 64750 * 100) < 1e-9, "btc stop percent");
+  for (const px of [0.0001, 0.42, 150, 1900, 9999, 10000, 64750, 1e6]) {
+    ok(num(px, priceDec(String(px))).length > 0, "num survives price " + px);
+    ok(qtyDec(1 / px) >= 0 && qtyDec(1 / px) <= 8, "qty digits in range at " + px);
+  }
+  ok(num(1, -1) === "1" && num(1, 99) !== "", "num clamps out-of-range digits");
+  // a quantity keeps 4 significant figures however small it gets
+  ok((0.006134).toFixed(qtyDec(0.006134)) === "0.006134", "btc quantity is not rounded to 0.0");
+  ok((2.3821).toFixed(qtyDec(2.3821)) === "2.382", "mid quantity");
+  ok((254.7).toFixed(qtyDec(254.7)) === "254.7", "large quantity");
+  ok(priceDec("64750") === 0 && priceDec("0.4213") === 4, "price decimals follow the input");
 
   const c = parseCsv('date,symbol,r\n"2026-01-01 10:00","SOL, spot",1.5\n');
   ok(c.length === 1 && c[0].symbol === "SOL, spot" && c[0].r === "1.5", "csv quotes");
