@@ -22,6 +22,11 @@ No build step, no dependencies, no network calls - `index.html` is the whole thi
 - **Compounding** - a fixed monthly percentage compounded over months or years,
   with an optional cap: above it the trading balance is held flat and the profit
   is banked instead of compounded.
+- **Playbook** - the manual setup drawn out: daily SMA 50 for direction, an old
+  unbroken TSR box on the 4H for the level, a 15m candle body closing out of the
+  box for the entry. Twelve checkable rules sit above the charts; the Trade tab
+  shows how many are ticked and the list clears itself when a result is logged.
+  The rule ticks are kept in `localStorage` like the other inputs.
 
 ## Where the data lives
 
@@ -44,4 +49,5 @@ as a different site.
 
 The page runs its own assertions on load and logs `self-check ok` to the console.
 They cover the position maths against fees, the journal statistics, CSV quoting
-and round trips, the losing-run compounding, and the compounding cap.
+and round trips, the losing-run compounding, the compounding cap, and that the
+playbook rules only pass at 12 of 12 with all twelve charts drawn.

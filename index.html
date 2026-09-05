@@ -84,6 +84,45 @@
   td.del button:hover { color:var(--bad) }
   .WIN { color:var(--acc) } .LOSS { color:var(--bad) }
   #empty { color:var(--mute); padding:26px 0; text-align:center }
+
+  /* playbook */
+  .pb .card { margin-top:10px }
+  .pb h2 { font:700 20px "Segoe UI",system-ui,sans-serif; margin:0 0 4px }
+  .pb h3 { font:700 15px "Segoe UI",system-ui,sans-serif; margin:0 0 6px }
+  .pb .step { color:var(--acc); font:700 11px "Segoe UI",system-ui,sans-serif; letter-spacing:.1em }
+  .pb .tfb { display:inline-block; background:var(--sunk); color:var(--mute); font:600 11px Consolas,monospace;
+             padding:2px 7px; border-radius:3px; margin-left:6px; vertical-align:middle }
+  .pb p { margin:0 0 8px; max-width:64ch; line-height:1.5 }
+  .pb p.hint { max-width:none }
+  .pb svg { display:block; width:100%; height:auto; font-family:"Segoe UI",system-ui,sans-serif }
+  .pb figure { margin:10px 0 0; background:var(--sunk); border-radius:6px; padding:8px 8px 4px }
+  .pb figcaption { color:var(--mute); font-size:11px; padding:6px 2px 2px; line-height:1.4 }
+  .strip { display:flex; gap:10px; flex-wrap:wrap }
+  .strip figure { flex:1 1 220px; margin:0 }
+  .strip figcaption { color:var(--fg); font-size:12px }
+  .strip .n { display:inline-block; width:18px; height:18px; border-radius:50%; background:var(--acc); color:#0b1a14;
+              font:700 11px Consolas,monospace; text-align:center; line-height:18px; margin-right:6px }
+  .trio { display:flex; gap:10px; flex-wrap:wrap }
+  .trio figure { flex:1 1 200px; margin:10px 0 0 }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0 }
+  .chip { background:var(--sunk); border-left:3px solid var(--acc); border-radius:0 4px 4px 0;
+          padding:6px 10px; font-size:12px; line-height:1.4; flex:1 1 200px }
+  .chip.no { border-left-color:var(--bad) } .chip.go { border-left-color:var(--warn) }
+  .pb .mono { font:600 13px Consolas,monospace }
+  /* checklist */
+  .rules { display:grid; gap:6px }
+  .rules h4 { margin:10px 0 2px; color:var(--mute); font:600 11px "Segoe UI",system-ui,sans-serif;
+              letter-spacing:.08em; text-transform:uppercase }
+  .rules label { margin:0; padding:8px 10px; background:var(--sunk); border-radius:5px; cursor:pointer;
+                 align-items:flex-start; line-height:1.4 }
+  .rules label:hover { outline:1px solid var(--line) }
+  .rules label span { width:auto; flex:1; color:var(--fg); font-size:13px }
+  .rules label input { margin-top:2px }
+  .rules input:checked + span { color:var(--mute) }
+  #ruleBar { height:6px; background:var(--sunk); border-radius:3px; overflow:hidden; margin:8px 0 }
+  #ruleFill { height:100%; width:0; background:var(--bad); transition:width .2s, background .2s }
+  #ruleVerdict { font:700 16px "Segoe UI",system-ui,sans-serif; margin:0 }
+  #ruleState { margin:12px 0 0; font-weight:700; font-size:12px }
 </style>
 
 <main>
@@ -92,6 +131,7 @@
     <button id="tabLog"    aria-selected="false" onclick="show(1)">Journal</button>
     <button id="tabRisk"   aria-selected="false" onclick="show(2)">Losing run</button>
     <button id="tabGrowth" aria-selected="false" onclick="show(3)">Compounding</button>
+    <button id="tabPlay"   aria-selected="false" onclick="show(4)">Playbook</button>
   </nav>
 
   <!-- ---------- trade ---------- -->
@@ -123,6 +163,7 @@
         <div class="row"><span>If it wins</span>   <b id="win"  style="color:var(--acc)">-</b></div>
         <div class="row"><span>If it loses</span>  <b id="lose" style="color:var(--bad)">-</b></div>
         <p id="warn"></p>
+        <p id="ruleState" class="hint"></p>
         <div class="btns">
           <button class="act"      id="bCopy" onclick="copyQty(this)">Copy qty</button>
           <button class="act win"  id="bWin"  onclick="log(true)">Log WIN</button>
@@ -237,6 +278,128 @@
           </tr></thead>
           <tbody id="gRows"></tbody>
         </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- playbook ---------- -->
+  <section id="secPlay" class="pb" hidden>
+
+    <div class="card" style="margin-top:0">
+      <h2>One trade, three charts</h2>
+      <p class="hint" style="margin-bottom:10px">The big trend says which way. An old unbroken box on the 4H says where. A 15m close says when.</p>
+      <div class="strip">
+        <figure><svg id="pbO1" role="img" aria-label="Daily candles above a rising average"></svg>
+          <figcaption><span class="n">1</span><b>Daily</b> above a rising SMA 50 = longs only</figcaption></figure>
+        <figure><svg id="pbO2" role="img" aria-label="4H price returning into an old support box"></svg>
+          <figcaption><span class="n">2</span><b>4H</b> price comes back into an old blue box</figcaption></figure>
+        <figure><svg id="pbO3" role="img" aria-label="15m candle closing above the box, entry marked"></svg>
+          <figcaption><span class="n">3</span><b>15m</b> body closes back above the box = enter</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Rules before every trade</h2>
+      <p class="hint">Tick each one only when it is true right now. The trade is allowed only at 12 of 12.
+        The list clears itself when you log the result.</p>
+      <div id="ruleBar"><div id="ruleFill"></div></div>
+      <p id="ruleVerdict"></p>
+      <div class="rules">
+        <h4>Direction (daily)</h4>
+        <label><input type="checkbox" id="k1"><span>Price is above a <b>rising</b> SMA 50 (long) or below a <b>falling</b> SMA 50 (short). Not flat, not crossing.</span></label>
+        <label><input type="checkbox" id="k2"><span>My trade goes <b>with</b> the daily trend. A bounce against it is not a trade.</span></label>
+        <h4>Level (4H)</h4>
+        <label><input type="checkbox" id="k3"><span>The box comes from TSR on the <b>4H or 1H</b>, not from the 15m.</span></label>
+        <label><input type="checkbox" id="k4"><span>No <b>1H candle body</b> has closed through the box since it formed. Wicks do not count.</span></label>
+        <label><input type="checkbox" id="k5"><span>Price is <b>inside the box now</b>. Not approaching it, not already gone.</span></label>
+        <h4>Entry (15m)</h4>
+        <label><input type="checkbox" id="k6"><span>A 15m candle <b>body closed</b> out of the box in my direction. A wick is not a close.</span></label>
+        <label><input type="checkbox" id="k7"><span>Stop is a little <b>beyond the farthest wick</b> of the visit.</span></label>
+        <label><input type="checkbox" id="k8"><span>Target is the <b>next 4H box</b> in my direction.</span></label>
+        <label><input type="checkbox" id="k9"><span>Target is at least <b>2R</b> away. Trade tab reward:risk is 2:1 or more.</span></label>
+        <h4>Size and hands</h4>
+        <label><input type="checkbox" id="k10"><span>Risk is <b>1% of the account</b> or less.</span></label>
+        <label><input type="checkbox" id="k11"><span><b>One</b> entry, <b>one</b> stop, <b>one</b> target. No adding, no partials.</span></label>
+        <label><input type="checkbox" id="k12"><span>I will <b>not move</b> the stop or the target. The trade ends at one of them.</span></label>
+      </div>
+      <div class="btns">
+        <button class="act" onclick="resetRules()">Clear for next trade</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="step">STEP 1 <span class="tfb">Daily</span></div>
+      <h3>Decide the direction first</h3>
+      <p>Daily chart, SMA 50 on it. Nothing else is looked at until this is answered.</p>
+      <figure><svg id="pb1" role="img" aria-label="Daily chart, price above a rising SMA 50, marked longs only"></svg></figure>
+      <div class="chips">
+        <div class="chip">Above a rising line: <b>longs at blue boxes only</b></div>
+        <div class="chip">Below a falling line: <b>shorts at red boxes only</b></div>
+        <div class="chip no">Crossing or flat: <b>no trade on this coin today</b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="step">STEP 2 <span class="tfb">4H</span></div>
+      <h3>Find an old, unbroken box</h3>
+      <p>TSR on the 4H. A blue box is a swing low no candle body has closed below since. Box top is the candle body, box bottom is the wick. It shows up about 20 candles (3 days) after the low. That is fine: you want price to come back to it, not to catch the low.</p>
+      <figure><svg id="pb2" role="img" aria-label="4H chart: a swing low forms a blue box extending right; an older grey level above it was closed through"></svg>
+        <figcaption>Blue box: the level you trade. Grey: a body closed through it on the way down, so it is gone. TSR deletes those. Do not draw them back.</figcaption></figure>
+    </div>
+
+    <div class="card">
+      <div class="step">STEP 3 <span class="tfb">4H</span><span class="tfb">1H</span></div>
+      <h3>Wait for price to come back into the box</h3>
+      <p>This takes days. Set one alert at the box top and close the app. When it fires, re-check step 1, then check the 1H: has a body closed below the box bottom? If yes, the level is dead.</p>
+      <figure><svg id="pb3" role="img" aria-label="4H chart: price rallies away from the box, then falls back into it days later"></svg>
+        <figcaption>Last candle: wick below the box, body inside it. Level alive. Now zoom to the 15m.</figcaption></figure>
+    </div>
+
+    <div class="card">
+      <div class="step">STEP 4 <span class="tfb">15m</span></div>
+      <h3>The confirmation candle, then enter</h3>
+      <p>On the 15m the box is a wide band. Price pokes in, wicks under it, maybe more than once. You wait for one candle: it was inside or below the box and its <b>body closes above the box top</b>. Enter at that close.</p>
+      <figure><svg id="pb4" role="img" aria-label="15m chart: wicks dip under the box, then a circled green candle closes above the box top; entry, stop and 2R target tags on the right"></svg>
+        <figcaption>Circled candle is the entry. Stop a little under the lowest wick. The 2R line is the least a target must reach; the target itself is the next 4H red box.</figcaption></figure>
+      <div class="chips">
+        <div class="chip go"><b>Entry</b> = close of the confirmation candle</div>
+        <div class="chip no"><b>Stop</b> = a little under the lowest wick of the visit</div>
+        <div class="chip"><b>Target</b> = next 4H red box, at least 2R away or skip</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="step">STEP 5</div>
+      <h3>Size it, set it, leave it</h3>
+      <p>Risk 1% of the account. The Trade tab does the maths: type the entry as price, the stop, and 2:1 or better. One entry, one stop, one target, isolated 5x. Then hands off until the trade ends at one of them. Log WIN or LOSS, which also clears the rules list for the next trade.</p>
+      <p class="hint">Reference: with a 1R stop and 2R targets, after fees you need about 36 winners in 100 to break even. Random entries in a daily uptrend land near that. The method has edge only if the Journal tab shows clearly more after 40 trades.</p>
+    </div>
+
+    <div class="card">
+      <div class="step">MIRROR <span class="tfb">15m</span></div>
+      <h3>The same trade as a short</h3>
+      <p>Daily below a falling SMA 50, so only red boxes above price count. Price rallies into the red box, wicks poke above it, then one 15m body <b>closes below the box bottom</b>. Enter there. Stop a little above the highest wick. Target the next 4H blue box, at least 2R.</p>
+      <figure><svg id="pb5" role="img" aria-label="15m chart: price rises into a red box, wicks above it, then a circled red candle closes below the box; entry, stop and 2R tags"></svg></figure>
+    </div>
+
+    <div class="card">
+      <div class="step">THE TRADE YOU SKIP <span class="tfb">4H</span></div>
+      <h3>A bounce against the trend is not a trade</h3>
+      <p>Daily trend down, price drops into an old blue box and bounces hard. The 15m will confirm. You still do not buy: dip-buying against the trend only paid on crash days and lost overall in every version tested. In a downtrend a support bounce is where you wait for the next red box to short.</p>
+      <figure><svg id="pb6" role="img" aria-label="4H downtrend: a support bounce marked with a red cross, the resistance retest above marked with a green check, then price closes through the support"></svg></figure>
+    </div>
+
+    <div class="card">
+      <div class="step">WICKS VS CLOSES <span class="tfb">15m</span><span class="tfb">1H</span></div>
+      <h3>What counts as broken</h3>
+      <p>TSR keeps the box on screen even with price under it for the last three candles, and its alert fires on a one-tick wick. You decide by candle bodies, never by the indicator.</p>
+      <div class="trio">
+        <figure><svg id="pbW1" role="img" aria-label="15m: wick below the box, body inside; level alive"></svg>
+          <figcaption><b>Wick under, body inside.</b> Alive. Keep waiting.</figcaption></figure>
+        <figure><svg id="pbW2" role="img" aria-label="15m: body closes below the box; no entry yet"></svg>
+          <figcaption><b>15m body closes below.</b> No entry. Wait for a close back above, or for the 1H.</figcaption></figure>
+        <figure><svg id="pbW3" role="img" aria-label="1H: body closes below the box; level dead"></svg>
+          <figcaption><b>1H body closes below.</b> Dead. Next box.</figcaption></figure>
       </div>
     </div>
   </section>
@@ -392,6 +555,7 @@ function log(won) {
     r: (pnl / last.risk).toFixed(2), result: won ? "WIN" : "LOSS",
   });
   save();
+  resetRules();                                // the next trade starts with an unticked list
   $("price").value = $("sl").value = "";       // clear for the next trade
   calc();
   $("price").focus();
@@ -629,10 +793,229 @@ function importCsv(input) {
   input.value = "";
 }
 
+
+/* ---------- playbook tab: rules checklist + drawn examples ---------- */
+
+const RULE_IDS = Array.from({ length: 12 }, (_, i) => "k" + (i + 1));
+const KEY_RULES = "tradeCalc.rules";
+
+/* pure: how many rules are ticked and whether the trade is allowed */
+const rulesMet = flags => ({ done: flags.filter(Boolean).length, total: flags.length,
+                             ok: flags.length > 0 && flags.every(Boolean) });
+
+function calcRules() {
+  const r = rulesMet(RULE_IDS.map(k => $(k).checked));
+  const col = r.ok ? "var(--acc)" : r.done ? "var(--warn)" : "var(--bad)";
+  $("ruleFill").style.width = (r.done / r.total * 100) + "%";
+  $("ruleFill").style.background = col;
+  $("ruleVerdict").style.color = col;
+  $("ruleVerdict").textContent = r.ok ? `All ${r.total} rules met. The trade is allowed.`
+    : r.done ? `${r.total - r.done} of ${r.total} rules not met. No trade.` : "No rules checked yet. No trade.";
+  const s = $("ruleState");
+  s.style.color = r.ok ? "var(--acc)" : r.done ? "var(--warn)" : "var(--mute)";
+  s.textContent = r.ok ? `Playbook: ${r.total}/${r.total} rules met`
+    : r.done ? `Playbook: ${r.done}/${r.total} rules met - do not place this trade yet`
+    : "Playbook: rules not checked yet";
+}
+
+function resetRules() {
+  RULE_IDS.forEach(k => $(k).checked = false);
+  try { localStorage[KEY_RULES] = JSON.stringify(RULE_IDS.map(() => false)); }
+  catch (e) { warnNoStorage(e); }
+  calcRules();
+}
+
+/* --- tiny candle chart renderer (SVG, no library) --- */
+const PB = {
+  up: "#3ddc97", down: "#ff5c7a", warn: "#ffb454", sup: "#4c8dff", fg: "#e6e9ef", mute: "#7d8799",
+  grid: "#1d2330", dead: "#5b6473", supFill: "rgba(76,141,255,.20)", resFill: "rgba(255,92,122,.18)",
+  deadFill: "rgba(91,100,115,.22)",
+};
+
+/* candles from a list of closes: open = previous close, wick sizes are deterministic */
+function pbCandles(closes, w) {
+  const out = []; let prev = closes[0] - (closes[1] - closes[0]);
+  closes.forEach((c, i) => {
+    const o = prev, r1 = ((i * 7919) % 13) / 13, r2 = ((i * 104729) % 11) / 11;
+    out.push([o, Math.max(o, c) + w * (0.25 + r1), Math.min(o, c) - w * (0.25 + r2), c]);
+    prev = c;
+  });
+  return out;
+}
+
+function pbDraw(s) {
+  const svg = $(s.id), W = s.W || 680, H = s.H || 300, padL = 10, padR = s.padR == null ? 96 : s.padR, padT = 28, padB = 12;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.textContent = "";
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, at, parent = svg) => { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); parent.appendChild(e); return e; };
+  const txt = (x, y, str, o = {}) => {
+    const t = el("text", { x, y, fill: o.fill || PB.fg, "font-size": o.size || 12, "font-weight": o.weight || 600,
+      "text-anchor": o.anchor || "middle", "font-family": o.mono ? "Consolas,monospace" : "inherit" });
+    (Array.isArray(str) ? str : [str]).forEach((l, i) => { const ts = el("tspan", { x, dy: i ? 14 : 0 }, t); ts.textContent = l; });
+    return t;
+  };
+  const n = s.candles.length, cw = (W - padL - padR) / n, xr = W - padR;
+  let lo = Infinity, hi = -Infinity;
+  s.candles.forEach(c => { lo = Math.min(lo, c[2]); hi = Math.max(hi, c[1]); });
+  (s.zones || []).forEach(z => { lo = Math.min(lo, z.bottom); hi = Math.max(hi, z.top); });
+  (s.lines || []).forEach(l => { lo = Math.min(lo, l.y); hi = Math.max(hi, l.y); });
+  if (s.ylo != null) lo = s.ylo; if (s.yhi != null) hi = s.yhi;
+  const span = hi - lo; lo -= span * 0.06; hi += span * 0.06;
+  const x = i => padL + (i + 0.5) * cw, y = p => padT + (hi - p) / (hi - lo) * (H - padT - padB);
+
+  for (let g = 1; g < 5; g++) { const gy = padT + g * (H - padT - padB) / 5; el("line", { x1: padL, x2: xr, y1: gy, y2: gy, stroke: PB.grid }); }
+  el("rect", { x: padL, y: 5, width: 10 + s.tf.length * 8, height: 18, rx: 3, fill: PB.grid });
+  txt(padL + 5 + s.tf.length * 4, 18, s.tf, { size: 11, mono: true, fill: PB.mute });
+
+  (s.zones || []).forEach(z => {
+    const stroke = z.kind === "sup" ? PB.sup : z.kind === "res" ? PB.down : PB.dead;
+    const fill = z.kind === "sup" ? PB.supFill : z.kind === "res" ? PB.resFill : PB.deadFill;
+    const x1 = x(z.from) - cw / 2, x2 = z.to == null ? xr : x(z.to) + cw / 2;
+    el("rect", { x: x1, y: y(z.top), width: x2 - x1, height: Math.max(2, y(z.bottom) - y(z.top)), fill, stroke, "stroke-width": 1.5,
+                 "stroke-dasharray": z.kind === "dead" ? "4 3" : "none" });
+    if (z.label) txt(z.labelX != null ? x(z.labelX) : x2 - 6, y(z.top) - 6, z.label, { fill: stroke, anchor: z.labelX != null ? "start" : "end", size: 12 });
+  });
+
+  if (s.ma) {
+    let d = "", run = 0; const m = [];
+    s.candles.forEach((c, i) => { run += c[3]; if (i >= s.ma) run -= s.candles[i - s.ma][3]; m.push(run / Math.min(i + 1, s.ma)); });
+    m.forEach((p, i) => d += (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p).toFixed(1) + " ");
+    el("path", { d, fill: "none", stroke: PB.warn, "stroke-width": 2.4 });
+    if (s.maLabel) txt(xr + 6, y(m[n - 1]) + 4, s.maLabel, { fill: PB.warn, anchor: "start", size: 12 });
+  }
+
+  s.candles.forEach((c, i) => {
+    const up = c[3] >= c[0], col = up ? PB.up : PB.down, cx = x(i), bw = Math.max(3, cw * 0.62);
+    el("line", { x1: cx, x2: cx, y1: y(c[1]), y2: y(c[2]), stroke: col, "stroke-width": 1.3 });
+    const top = y(Math.max(c[0], c[3])), bot = y(Math.min(c[0], c[3]));
+    el("rect", { x: cx - bw / 2, y: top, width: bw, height: Math.max(1.5, bot - top), fill: col });
+  });
+
+  (s.lines || []).forEach(l => {
+    const col = l.kind === "entry" ? PB.warn : l.kind === "stop" ? PB.down : l.kind === "tp" ? PB.up : l.kind === "dead" ? PB.dead : PB.mute;
+    el("line", { x1: l.from == null ? padL : x(l.from), x2: xr, y1: y(l.y), y2: y(l.y), stroke: col,
+                 "stroke-width": l.kind === "r" ? 1 : 1.8, "stroke-dasharray": l.dash || (l.kind === "r" ? "2 4" : "none") });
+    if (!l.label) return;
+    if (l.tag) {                                    // price tag like the exchange shows it
+      el("rect", { x: xr + 3, y: y(l.y) - 10, width: padR - 6, height: 20, rx: 3, fill: col });
+      txt(xr + padR / 2, y(l.y) + 4, l.label, { fill: "#0d1016", size: 12, mono: true });
+    } else txt(xr + 6, y(l.y) + 4, l.label, { fill: col, anchor: "start", size: 11, weight: 400 });
+  });
+
+  (s.rings || []).forEach(r => el("circle", { cx: x(r.i), cy: y(r.p), r: r.r || 16, fill: "none", stroke: PB.warn, "stroke-width": 2.5 }));
+
+  (s.marks || []).forEach(m => {                    // big check / cross badges
+    const col = m.ok ? PB.up : PB.down, mx = x(m.i) + (m.dx || 0), my = y(m.p) + (m.dy || 0);
+    el("circle", { cx: mx, cy: my, r: 13, fill: col });
+    txt(mx, my + 5, m.ok ? "✓" : "✕", { fill: "#0d1016", size: 15, weight: 800 });
+    if (m.text) txt(mx + (m.tx || 0), my + (m.ty || 28), m.text, { fill: col, size: m.size || 12, anchor: m.anchor || "middle" });
+  });
+
+  (s.notes || []).forEach(nt => {
+    const col = nt.color || PB.fg, nx = x(nt.i), ny = y(nt.p), dy = nt.dy || -34, dx = nt.dx || 0;
+    if (!nt.noLeader) el("line", { x1: nx, y1: ny, x2: nx + dx, y2: ny + dy + (dy < 0 ? 4 : -12), stroke: col });
+    txt(nx + dx, ny + dy, nt.text, { fill: col, size: nt.size || 12, anchor: nt.anchor || "middle", weight: nt.weight || 600 });
+  });
+}
+
+function drawPlaybook() {
+  const daily = [100,101,103,102,104,106,105,107,109,108,110,112,111,109,110,113,115,114,116,118,117,119,121,120,118,119,122,124,123,125,127,126,128,130,129,131,133,132,130,131,134,136,135,138];
+  const h4 = [120,118,117,115,113,111,109,106,104,102,100,103,105,104,107,110,112,111,114,117,119,118,121,124,126,125,128,130,129,131,132,130,131,129,128,130,131,129,127,128,130,132,131,133,132,131,130,129];
+  const back = [127,124,121,118,114,111,107,104,102,101,100.6,99.8];
+  const m15 = [106,105.5,105,104.2,103.5,103,102.4,101.8,101.2,100.6,100.2,99.6,99.2,99.5,99.0,99.4,99.8,99.6,100.9,101.4,101.8,101.5,102.2,102.8,103.4,103.1,103.9,104.5,105.0,105.6,106.2,106.0,106.8,107.4,108.0,108.6,109.6];
+  const pivot = d => { d[10][2] = 97; d[10][0] = 102; d[10][3] = 100; return d; };
+  const fix15 = d => { d[13][2] = 97.3; d[14][2] = 97.1; d[18][0] = 99.6; d[18][3] = 100.9; d[18][1] = 101.1; return d; };
+
+  // overview strip: one glance each
+  pbDraw({ id: "pbO1", tf: "Daily", W: 300, H: 200, padR: 12, candles: pbCandles(daily.slice(12), 1.1), ma: 8,
+    marks: [{ i: 26, p: 118, ok: true, text: "UP: longs only", ty: 30, size: 13 }] });
+  const o2 = pivot(pbCandles(h4.slice(0, 44).concat(back), 1.0)); o2[55][2] = 97.4;
+  pbDraw({ id: "pbO2", tf: "4H", W: 300, H: 200, padR: 12, candles: o2, ylo: 91, zones: [{ from: 10, top: 100, bottom: 97, kind: "sup" }],
+    notes: [{ i: 55, p: 97.4, text: "back in the box", dy: 30, dx: -34 }] });
+  pbDraw({ id: "pbO3", tf: "15m", W: 300, H: 200, padR: 12, candles: fix15(pbCandles(m15, 0.5)).slice(6, 30), yhi: 106.5,
+    zones: [{ from: 0, top: 100, bottom: 97, kind: "sup" }], rings: [{ i: 12, p: 100.3, r: 14 }],
+    notes: [{ i: 12, p: 101.3, text: "closes above: enter", dy: -26, dx: 0, color: PB.warn }] });
+
+  // step 1
+  pbDraw({ id: "pb1", tf: "Daily", candles: pbCandles(daily, 1.1), ma: 10, maLabel: "SMA 50 rising",
+    marks: [{ i: 37, p: 112, ok: true, text: "price above, line up: LONGS ONLY", ty: 30, size: 14 }] });
+
+  // step 2
+  const d2 = pivot(pbCandles(h4, 1.0)); d2[6][2] = 108.4; d2[6][3] = 109; d2[7][3] = 106; d2[7][0] = 109;
+  pbDraw({ id: "pb2", tf: "4H", candles: d2, H: 330, ylo: 92,
+    zones: [{ from: 10, top: 100, bottom: 97, kind: "sup", label: "Support 97.0 to 100.0", labelX: 12 },
+            { from: 0, to: 7, top: 110.5, bottom: 109.0, kind: "dead", label: "broken", labelX: 0 }],
+    notes: [{ i: 10, p: 97, text: ["the swing low", "box top = body, bottom = wick"], dy: 30, dx: 90 },
+            { i: 33, p: 100.6, text: "box appears about 20 candles later", dy: -8, noLeader: true, weight: 400, color: PB.mute }] });
+
+  // step 3
+  const d3 = pivot(pbCandles(h4.concat(back), 1.0)); d3[59][2] = 97.4; d3[59][1] = 101.2;
+  pbDraw({ id: "pb3", tf: "4H", candles: d3, padR: 104,
+    zones: [{ from: 10, top: 100, bottom: 97, kind: "sup", label: "Support 97.0 to 100.0", labelX: 12 }],
+    lines: [{ y: 100, kind: "entry", dash: "5 4", from: 44, label: "alert here" },
+            { y: 97, kind: "dead", dash: "3 3", from: 44, label: ["1H body below", "= level dead"] }],
+    notes: [{ i: 59, p: 97.4, text: ["price is back", "in the box"], dy: 44, dx: -34 },
+            { i: 44, p: 133.5, text: "left the level, came back days later", dy: -10, anchor: "end", noLeader: true, weight: 400, color: PB.mute }] });
+
+  // step 4: the entry
+  pbDraw({ id: "pb4", tf: "15m", candles: fix15(pbCandles(m15, 0.5)), padR: 110, yhi: 111,
+    zones: [{ from: 0, top: 100, bottom: 97, kind: "sup", label: "the 4H box", labelX: 0 }],
+    lines: [{ y: 100.9, kind: "entry", from: 18, label: "ENTRY 100.9", tag: true },
+            { y: 96.8, kind: "stop", from: 12, label: "STOP 96.8", tag: true },
+            { y: 105.0, kind: "r", from: 18, label: "1R" },
+            { y: 109.1, kind: "tp", from: 18, label: "2R  109.1", tag: true, dash: "6 4" }],
+    rings: [{ i: 18, p: 100.3, r: 17 }],
+    notes: [{ i: 14, p: 97.1, text: ["wicks under the box", "do not matter"], dy: 30, dx: 40 },
+            { i: 18, p: 101.4, text: ["body CLOSES above the box top", "= the confirmation candle"], dy: -44, dx: 10, color: PB.warn },
+            { i: 27, p: 96.9, text: "stop a little under the lowest wick", dy: 24, noLeader: true, weight: 400, color: PB.mute }] });
+
+  // mirror: short
+  const s15 = [119,119.5,120,120.8,121.5,122,122.6,123.2,123.8,124.4,124.9,125.4,125.8,125.6,126.0,125.7,125.3,125.5,124.4,124.0,123.6,123.9,123.2,122.6,122.0,122.3,121.6,121.0,120.5,120.0,119.4,119.6,118.9,118.3,117.8,117.2,116.4];
+  const d5 = pbCandles(s15, 0.5); d5[13][1] = 127.1; d5[14][1] = 127.3; d5[18][0] = 125.4; d5[18][3] = 124.4; d5[18][2] = 124.2;
+  pbDraw({ id: "pb5", tf: "15m", candles: d5, padR: 110, ylo: 115,
+    zones: [{ from: 0, top: 128, bottom: 125, kind: "res", label: "the 4H red box", labelX: 0 }],
+    lines: [{ y: 124.4, kind: "entry", from: 18, label: "ENTRY 124.4", tag: true },
+            { y: 127.6, kind: "stop", from: 12, label: "STOP 127.6", tag: true },
+            { y: 121.2, kind: "r", from: 18, label: "1R" },
+            { y: 118.0, kind: "tp", from: 18, label: "2R  118.0", tag: true, dash: "6 4" }],
+    rings: [{ i: 18, p: 124.9, r: 17 }],
+    notes: [{ i: 14, p: 127.3, text: ["wicks above the box", "do not matter"], dy: -28, dx: 50 },
+            { i: 18, p: 124.2, text: ["body CLOSES below the box bottom", "= the confirmation candle"], dy: 62, dx: -60, color: PB.warn }] });
+
+  // the skip
+  const dn = [140,138,139,136,134,135,132,130,131,128,126,127,125,123,124,121,119,120,118.6,120,122,121,123,124.2,123,121.5,120,118.4,117.2,116.5,115,113,114,111,110,111,109,107.5];
+  const d6 = pbCandles(dn, 1.0); d6[11][1] = 128; d6[11][0] = 126; d6[11][3] = 127; d6[18][2] = 116.8; d6[23][1] = 125.6;
+  pbDraw({ id: "pb6", tf: "4H", candles: d6, padR: 104, ma: 12, maLabel: "SMA 50 falling",
+    zones: [{ from: 11, top: 128, bottom: 125, kind: "res", label: "Resistance 125 to 128", labelX: 27 },
+            { from: 0, top: 119.2, bottom: 117.0, kind: "sup", label: "old support 117 to 119", labelX: 0 }],
+    marks: [{ i: 18, p: 116.8, ok: false, dy: 28, text: "SKIP: bounce against the trend", ty: 26, size: 13 },
+            { i: 23, p: 125.6, ok: true, dy: -28, text: "the one to wait for: short the red box", ty: -20, size: 13 }],
+    notes: [{ i: 29, p: 116.5, text: ["then it closed", "through anyway"], dy: 40, weight: 400, color: PB.mute }] });
+
+  // wicks vs closes
+  const w1 = pbCandles([101.4,100.9,100.4,99.9,99.3,99.6,99.2,99.7], 0.35); w1[6][2] = 96.6;
+  pbDraw({ id: "pbW1", tf: "15m", W: 300, H: 210, padR: 12, candles: w1, ylo: 95.5, yhi: 102.8,
+    zones: [{ from: 0, top: 100, bottom: 97, kind: "sup" }],
+    marks: [{ i: 2.5, p: 102, ok: true, text: "ALIVE, wait", tx: 58, ty: 5, anchor: "start", size: 13 }],
+    notes: [{ i: 6, p: 96.6, text: "wick only", dy: 22, dx: -30 }] });
+  const w2 = pbCandles([101.4,100.9,100.4,99.9,99.3,98.6,97.6,96.4], 0.35); w2[7][0] = 97.6; w2[7][3] = 96.4; w2[7][2] = 96.1;
+  pbDraw({ id: "pbW2", tf: "15m", W: 300, H: 210, padR: 12, candles: w2, ylo: 95.5, yhi: 102.8,
+    zones: [{ from: 0, top: 100, bottom: 97, kind: "sup" }],
+    marks: [{ i: 2.5, p: 102, ok: false, text: "NO ENTRY, wait", tx: 58, ty: 5, anchor: "start", size: 13 }],
+    notes: [{ i: 7, p: 96.4, text: "body closed below", dy: 20, dx: -44 }] });
+  const w3 = pbCandles([102.8,101.6,100.6,99.4,98.2,96.2], 0.6); w3[5][0] = 98.2; w3[5][3] = 96.0; w3[5][2] = 95.7;
+  pbDraw({ id: "pbW3", tf: "1H", W: 300, H: 210, padR: 12, candles: w3, ylo: 95.0, yhi: 103.8,
+    zones: [{ from: 0, top: 100, bottom: 97, kind: "dead" }],
+    marks: [{ i: 2, p: 102.8, ok: false, text: "DEAD, next box", tx: 58, ty: 5, anchor: "start", size: 13 }],
+    notes: [{ i: 5, p: 96.0, text: "1H body closed below", dy: 18, dx: -54 }] });
+}
+
 /* ---------- boot ---------- */
 
 const TABS = [["tabTrade", "secTrade"], ["tabLog", "secLog"],
-              ["tabRisk", "secRisk"], ["tabGrowth", "secGrowth"]];
+              ["tabRisk", "secRisk"], ["tabGrowth", "secGrowth"],
+              ["tabPlay", "secPlay"]];
 
 function show(i) {
   TABS.forEach(([tab, sec], j) => {
@@ -669,6 +1052,8 @@ restore(SAVED, KEY_IN);                      // trade tab: calc() does its own s
 INPUTS.forEach(k => $(k).oninput = calc);
 wire(["rCap", "rPct", "rN"], "tradeCalc.risk", calcRisk);
 wire(["gCap", "gPct", "gMonths", "gCapOn", "gCapAt"], "tradeCalc.growth", calcGrowth);
+wire(RULE_IDS, KEY_RULES, calcRules);   // playbook checklist, saved like the other inputs
+drawPlaybook();
 calc();
 refresh();
 
@@ -747,6 +1132,12 @@ refresh();
   const c = parseCsv('date,symbol,r\n"2026-01-01 10:00","SOL, spot",1.5\n');
   ok(c.length === 1 && c[0].symbol === "SOL, spot" && c[0].r === "1.5", "csv quotes");
   ok(q('a"b,c') === '"a""b,c"', "csv escape");
+  // playbook: the trade is allowed only when every rule is ticked, and every rule exists
+  ok(rulesMet([]).ok === false && rulesMet([true, false]).done === 1, "rules partial");
+  ok(rulesMet([true, true]).ok && !rulesMet([true, false]).ok, "rules all-or-nothing");
+  ok(RULE_IDS.length === 12 && RULE_IDS.every(k => $(k) && $(k).type === "checkbox"), "12 rule boxes present");
+  ok(document.querySelectorAll("#secPlay svg").length === 12 &&
+     [...document.querySelectorAll("#secPlay svg")].every(s => s.childElementCount > 10), "12 playbook charts drawn");
   console.log("self-check ok");
 })();
 </script>
