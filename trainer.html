@@ -123,7 +123,6 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
         <li><b>Next bar ▸</b> until price reaches your line.</li>
         <li><b>Buy</b> or <b>Sell</b>, drag the red STOP and green TARGET lines, tap the <b>setup</b> you are trading, then <b>▶ Start trade</b>.</li>
       </ol>
-      <p class="small">After 3 losses in a row the trainer pauses for 10 minutes. Rushed trades were your weakest.</p>
       <p class="small">Zoom: drag the price numbers on the right, drag the chart to move it, mouse wheel for time. Fill = next candle's open, 0.05% fee per side.</p>
     </div>
     <div class="card">
@@ -327,7 +326,6 @@ function setTool(t) { tool = tool === t ? null : t; tool2 = null; $("bLevel").cl
 
 function chooseSide(d) {
   if (S.trade || S.done) return;
-  if (d !== S.dir && coolLeft() > 0) { session(); return; }
   S.dir = S.dir === d ? 0 : d; S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
   $("bLong").classList.toggle("on", S.dir === 1); $("bShort").classList.toggle("on", S.dir === -1);
   $("ticket").hidden = !S.dir;
@@ -449,21 +447,13 @@ function renderCurve() {
   $("curve").onpointerleave = rest;
 }
 // ---------- session guard ----------
-const COOL_MS = 10 * 60e3, DAY_CAP = 10;
-let paused = false;
+// information only: today's count and the current losing streak (no lock)
 function lossStreak() { let k = 0; for (let i = journal.length - 1; i >= 0 && journal[i].you < 0; i--) k++; return k; }
-function coolLeft() { const last = journal[journal.length - 1]; return last && last.played && lossStreak() >= 3 ? last.played + COOL_MS - Date.now() : 0; }
 function session() {
-  const today = new Date().toDateString(), n = journal.filter(r => r.played && new Date(r.played).toDateString() === today).length, k = lossStreak(), left = coolLeft();
-  $("cSession").textContent = `Today: ${n} trade${n === 1 ? "" : "s"}${k ? ` · ${k} loss${k === 1 ? "" : "es"} in a row` : ""}${n >= DAY_CAP ? " · past your 10/day limit" : ""}`;
-  $("cSession").className = "chip" + (n >= DAY_CAP || k >= 3 ? " warn" : "");
-  if (!S) return;
-  const cool = left > 0 && !S.trade && !S.done;
-  $("bLong").disabled = $("bShort").disabled = cool || !!S.trade;
-  if (cool) { paused = true; say(`<b>Pause: 3 losses in a row.</b> Buy and Sell come back in ${Math.ceil(left / 60e3)} min. Use the time to redraw your levels on 4H and 1D.`); }
-  else if (paused) { paused = false; hint(); }
+  const today = new Date().toDateString(), n = journal.filter(r => r.played && new Date(r.played).toDateString() === today).length, k = lossStreak();
+  $("cSession").textContent = `Today: ${n} trade${n === 1 ? "" : "s"}${k ? ` · ${k} loss${k === 1 ? "" : "es"} in a row` : ""}`;
+  $("cSession").className = "chip" + (k >= 3 ? " warn" : "");
 }
-setInterval(() => { if (journal.length && coolLeft() > -60e3) session(); }, 15e3);
 function setTag(t) {
   curTag = t;
   document.querySelectorAll("button.tag").forEach(b => b.classList.toggle("on", b.dataset.tag === t));
