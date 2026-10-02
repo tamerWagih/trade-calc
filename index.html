@@ -15,7 +15,7 @@
   main { width:100%; max-width:780px }
 
   /* tabs */
-  nav { display:flex; gap:4px; margin-bottom:10px }
+  nav { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px }   /* 6 tabs wrap on phones */
   nav button { background:none; border:0; border-radius:6px 6px 0 0; cursor:pointer;
                color:var(--mute); font:600 13px "Segoe UI",system-ui,sans-serif; padding:9px 20px }
   nav button:hover { color:var(--fg) }
@@ -132,6 +132,7 @@
     <button id="tabRisk"   aria-selected="false" onclick="show(2)">Losing run</button>
     <button id="tabGrowth" aria-selected="false" onclick="show(3)">Compounding</button>
     <button id="tabPlay"   aria-selected="false" onclick="show(4)">Playbook</button>
+    <button id="tabTrain"  aria-selected="false" onclick="show(5)">Trainer</button>
   </nav>
 
   <!-- ---------- trade ---------- -->
@@ -402,6 +403,11 @@
           <figcaption><b>1H body closes below.</b> Dead. Next box.</figcaption></figure>
       </div>
     </div>
+  </section>
+  <!-- ---------- chart trainer (its own page, loaded on first open) ---------- -->
+  <section id="secTrain" hidden>
+    <iframe id="trainFrame" title="Chart trainer"
+            style="display:block;width:100%;height:calc(100vh - 90px);min-height:560px;border:0;border-radius:8px;background:var(--card)"></iframe>
   </section>
 </main>
 
@@ -1015,7 +1021,7 @@ function drawPlaybook() {
 
 const TABS = [["tabTrade", "secTrade"], ["tabLog", "secLog"],
               ["tabRisk", "secRisk"], ["tabGrowth", "secGrowth"],
-              ["tabPlay", "secPlay"]];
+              ["tabPlay", "secPlay"], ["tabTrain", "secTrain"]];
 
 function show(i) {
   TABS.forEach(([tab, sec], j) => {
@@ -1023,6 +1029,8 @@ function show(i) {
     $(tab).ariaSelected = String(i === j);
   });
   if (i === 1) drawCurve();
+  if (i === 5 && !$("trainFrame").src) $("trainFrame").src = "trainer.html";
+  document.querySelector("main").style.maxWidth = i === 5 ? "none" : "";   // the chart needs the full width
 }
 
 const val = el => el.type === "checkbox" ? el.checked : el.value;

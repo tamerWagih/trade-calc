@@ -1,0 +1,592 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Level Desk Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600&family=Archivo+Narrow:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: TradingView-like: one toolbar above a tall chart, scorecard on the right; stacks on phones */
+:root {
+  --bg: #eef1f4; --panel: #ffffff; --line: #d5dbe2; --fg: #17202b; --muted: #5d6b7a;
+  --up: #0f8a6a; --down: #c8423b; --accent: #2d5fd8; --level: #b07a00; --trend: #7a4fd0;
+  --grid: #e4e8ed; --chip: #e3e8ee;
+  --f-display: "Archivo Narrow", "Arial Narrow", sans-serif;
+  --f-body: "Archivo", system-ui, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1319; --panel: #151c25; --line: #26313d; --fg: #e3e9ef; --muted: #8796a6;
+  --up: #2fbf94; --down: #ef6a5f; --accent: #6f98ff; --level: #e2b23c; --trend: #a98bf0;
+  --grid: #1c2530; --chip: #1f2934; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1319; --panel: #151c25; --line: #26313d; --fg: #e3e9ef; --muted: #8796a6;
+  --up: #2fbf94; --down: #ef6a5f; --accent: #6f98ff; --level: #e2b23c; --trend: #a98bf0;
+  --grid: #1c2530; --chip: #1f2934; color-scheme: dark }
+[hidden] { display: none !important; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tags .lbl { font: 600 12px var(--f-body); }
+button.tag.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.curve { position: relative; margin-top: 8px; }
+.curve svg { display: block; width: 100%; height: 70px; }
+.curve .tip { display: block; text-align: right; font: 500 11px var(--f-data); color: var(--muted); }
+.chip.warn { color: var(--down); }
+body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--f-body); padding: 10px 16px 20px; }
+h1 { font: 700 19px/1.1 var(--f-display); margin: 0; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+.chip { font: 500 12px var(--f-data); background: var(--chip); padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+.chip.up { color: var(--up); } .chip.down { color: var(--down); }
+.wrap { display: grid; grid-template-columns: minmax(0,1fr) 290px; gap: 12px; align-items: start; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0,1fr); } }
+.chartbox { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-width: 0; overflow: hidden; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+canvas { display: block; width: 100%; height: max(360px, calc(100vh - 200px)); touch-action: none; cursor: crosshair; }
+.msg { padding: 7px 12px; border-top: 1px solid var(--line); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.msg.win { background: color-mix(in srgb, var(--up) 18%, var(--panel)); } .msg.loss { background: color-mix(in srgb, var(--down) 16%, var(--panel)); }
+.msg b { font-weight: 600; }
+.ticket { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 7px 12px; border-top: 1px solid var(--line); background: var(--chip); }
+.ticket label { font: 600 12px var(--f-body); display: flex; gap: 5px; align-items: center; }
+.ticket input { font: 500 13px var(--f-data); width: 8.5em; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--fg); }
+button, select { font: 600 12.5px var(--f-body); color: var(--fg); background: var(--chip); border: 1px solid var(--line);
+  border-radius: 4px; padding: 4px 9px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button:disabled { opacity: .4; cursor: default; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.tf { min-width: 38px; }
+button.long { color: var(--up); } button.short { color: var(--down); }
+button.long.on { background: var(--up); color: #fff; border-color: var(--up); }
+button.short.on { background: var(--down); color: #fff; border-color: var(--down); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+aside { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.card h2 { font: 700 14px var(--f-display); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 6px; color: var(--muted); }
+.stats { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 13px; }
+.stats span:nth-child(even) { font: 500 13px var(--f-data); text-align: right; font-variant-numeric: tabular-nums; }
+.verdict { margin-top: 8px; font-size: 13px; padding: 7px; border-radius: 4px; background: var(--chip); }
+.pos { color: var(--up); } .neg { color: var(--down); }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font: 12px var(--f-data); font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font: 600 11px var(--f-body); color: var(--muted); }
+ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; }
+.small { font-size: 12px; color: var(--muted); }
+</style>
+
+<div class="top">
+  <h1>Level Desk Trainer</h1>
+  <span class="chip">Mystery coin</span>
+  <span class="chip" id="cTrend">Big trend: …</span>
+  <span class="chip" id="cAtr">ATR …</span>
+  <span class="chip" id="cBars">Waited 0h</span>
+  <span class="chip" id="cSession">Today: 0 trades</span>
+  <span class="chip" id="cSave">Journal: saved in this browser</span>
+</div>
+
+<div class="wrap">
+  <div class="chartbox">
+    <div class="bar">
+      <button class="tf" data-m="1">15m</button><button class="tf" data-m="4">1H</button><button class="tf" data-m="16">4H</button><button class="tf" data-m="96">1D</button>
+      <span class="sep"></span>
+      <button id="bLevel" title="Horizontal support / resistance line (key S)">S/R line</button>
+      <button id="bTrend" title="Trend line: two clicks (key T)">Trend line</button>
+      <button id="bUndo">Undo</button>
+      <button id="bClear">Clear</button>
+      <span class="sep"></span>
+      <button id="b1" title="One bar of the timeframe you are viewing (key N)">Next bar ▸</button>
+      <button id="b6">+6</button>
+      <button id="b24">+24</button>
+      <span class="sep"></span>
+      <button id="bZin" title="Zoom in">＋</button><button id="bZout" title="Zoom out">－</button><button id="bFit">Fit</button>
+      <span class="sep"></span>
+      <button class="long" id="bLong">Buy</button>
+      <button class="short" id="bShort">Sell</button>
+      <button id="bNew">New chart</button>
+    </div>
+    <canvas id="cv" aria-label="Price chart"></canvas>
+    <div class="ticket" id="ticket" hidden>
+      <label for="iStop">Stop <input id="iStop" type="number" step="any" inputmode="decimal"></label>
+      <label for="iTp">Target <input id="iTp" type="number" step="any" inputmode="decimal"></label>
+      <select id="sR" aria-label="Quick target"><option value="">Target = …</option><option value="1">1R</option><option value="1.5">1.5R</option><option value="2">2R</option><option value="3">3R</option></select>
+      <span class="tags" id="tags"><span class="lbl">Setup:</span><button class="tag" data-tag="Bounce off level">Bounce</button><button class="tag" data-tag="Break of level">Break</button><button class="tag" data-tag="Retest after break">Retest</button><button class="tag" data-tag="Trend line bounce">TL bounce</button><button class="tag" data-tag="Trend line break">TL break</button><button class="tag" data-tag="Other">Other</button></span>
+      <button class="primary" id="bStart" disabled>Pick a setup first</button>
+      <button id="bCancel">Cancel</button>
+    </div>
+    <div class="msg"><span id="msg">Loading 2 years of real candles…</span><button id="bFast" hidden>Fast forward ▸▸</button></div>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h2>How to play</h2>
+      <ol>
+        <li>Check <b>1D</b> and <b>4H</b> for the big picture, then trade on <b>1H</b> or <b>15m</b>.</li>
+        <li><b>S/R line</b>: click an old swing high or low. <b>Trend line</b>: two clicks. Lines stay on every timeframe.</li>
+        <li><b>Next bar ▸</b> until price reaches your line.</li>
+        <li><b>Buy</b> or <b>Sell</b>, drag the red STOP and green TARGET lines, tap the <b>setup</b> you are trading, then <b>▶ Start trade</b>.</li>
+      </ol>
+      <p class="small">After 3 losses in a row the trainer pauses for 10 minutes. Rushed trades were your weakest.</p>
+      <p class="small">Zoom: drag the price numbers on the right, drag the chart to move it, mouse wheel for time. Fill = next candle's open, 0.05% fee per side.</p>
+    </div>
+    <div class="card">
+      <h2>Scorecard</h2>
+      <div class="stats" id="stats"></div>
+      <div class="curve" id="curveBox" hidden><div class="small">Your edge over the coin flip, last 20 trades. Above the line = beating chance.</div><span class="tip" id="curveTip"></span><svg id="curve" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Learning curve"></svg></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="card">
+      <h2>Journal</h2>
+      <div class="tbl"><table><thead><tr><th>Coin</th><th>Date</th><th>TF</th><th>Side</th><th>Setup</th><th>You</th><th>Flip</th></tr></thead><tbody id="jt"></tbody></table></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+        <button id="bFileNew" hidden title="Create a journal file; every trade is then written to it automatically">New journal file…</button>
+        <button id="bFileOpen" hidden title="Connect an existing journal file and load its trades">Open journal file…</button>
+        <button id="bExport" hidden>Export</button><button id="bImport" hidden>Import</button><input type="file" id="fImport" accept=".json" hidden>
+        <button id="bCopy">Copy journal</button><button id="bReset">Reset</button></div>
+      <p class="small" id="fileNote" hidden></p>
+    </div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+// Clock and simulation run on 15m candles; 1H/4H/1D are built from them, so every view shows the same market.
+const FEE = 0.0005, MARGIN = 30, M15 = 900e3;
+// max holding time in 15m candles, by the timeframe the trade was placed on: 5 days, 5 days, 20 days, 60 days
+const HOLD = { 1: 480, 4: 480, 16: 1920, 96: 5760 }, MAXHOLD = 5760, TFN = { 1: "15m", 4: "1H", 16: "4H", 96: "1D" };
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+let DATA = null, S = null, tfm = 4, nBars = 140, yMan = null, drag = null, dragging = false, tool = null, tool2 = null, pending = null, timer = null;
+const HOST = "pages";   // build.py switches this to "artifact" for the claude.ai copy
+let journal = [], curTag = "";
+try { journal = JSON.parse(localStorage.getItem("levelDeskJournal") || "[]"); } catch (e) { journal = []; }
+const save = () => { try { localStorage.setItem("levelDeskJournal", JSON.stringify(journal)); } catch (e) {} };
+
+function decode(sym) {
+  const c = DATA[sym], n = c.d.length / 4, O = new Float64Array(n), H = new Float64Array(n), L = new Float64Array(n), C = new Float64Array(n), cum = new Float64Array(n + 1);
+  let v = c.c0;
+  for (let k = 0; k < n; k++) { v += c.d[4*k]; C[k] = v; O[k] = v + c.d[4*k+1]; H[k] = v + c.d[4*k+2]; L[k] = v + c.d[4*k+3]; cum[k+1] = cum[k] + v; }
+  return { O, H, L, C, cum, t0: c.t0, agg: {} };
+}
+// candle j of a timeframe m (in 15m units), cut off at 15m index `upto` (the still-forming candle)
+function candle(b, m, j, upto) {
+  const a = j * m, z = Math.min(a + m - 1, upto);
+  let h = -Infinity, l = Infinity;
+  for (let i = a; i <= z; i++) { if (b.H[i] > h) h = b.H[i]; if (b.L[i] < l) l = b.L[i]; }
+  return { o: b.O[a], h, l, c: b.C[z] };
+}
+
+function simulate(b, from, dir, sl, tp, hold = 480) {
+  const end = Math.min(from + hold, b.C.length);
+  for (let i = from; i < end; i++) {
+    if (dir > 0) { if (b.L[i] <= sl) return { i, px: sl, how: "stop" }; if (b.H[i] >= tp) return { i, px: tp, how: "target" }; }
+    else { if (b.H[i] >= sl) return { i, px: sl, how: "stop" }; if (b.L[i] <= tp) return { i, px: tp, how: "target" }; }
+  }
+  return { i: end - 1, px: b.C[end - 1], how: "time" };
+}
+const netR = (dir, entry, risk, px) => dir * (px - entry) / risk - 2 * FEE * entry / risk;
+(function selfTest() {
+  const b = { L: [9, 9, 7], H: [11, 13, 11], C: [10, 12, 8], O: [10, 10, 12] };
+  console.assert(simulate(b, 0, 1, 8, 12).how === "target", "long target");
+  console.assert(simulate(b, 2, 1, 8, 12).how === "stop", "long stop");
+  console.assert(simulate(b, 0, 1, 1, 99, 2).how === "time" && simulate(b, 0, 1, 1, 99, 2).i === 1, "hold limit");
+  console.assert(simulate({ L: [7], H: [13], C: [10] }, 0, 1, 8, 12).how === "stop", "same candle = stop");
+  console.assert(Math.abs(netR(1, 100, 1, 102) - 1.9) < 1e-9, "fees in R");
+  const k = candle(b, 3, 0, 1); console.assert(k.o === 10 && k.h === 13 && k.l === 9 && k.c === 12, "partial candle");
+})();
+
+const P = u => u * S.k;
+const dp = p => p >= 1000 ? 1 : p >= 100 ? 2 : p >= 1 ? 3 : 5;
+const fmt = p => p.toFixed(dp(Math.abs(p)));
+const bias = () => { const b = S.b, n = 4800; return b.C[S.t] > (b.cum[S.t + 1] - b.cum[S.t + 1 - n]) / n ? 1 : -1; };
+function atr() {  // ATR(14) of completed 1H candles
+  const b = S.b, j1 = Math.floor((S.t + 1) / 4) - 1; let s = 0, prev = candle(b, 4, j1 - 14, S.t).c;
+  for (let j = j1 - 13; j <= j1; j++) { const k = candle(b, 4, j, S.t); s += Math.max(k.h, prev) - Math.min(k.l, prev); prev = k.c; }
+  return s / 14;
+}
+const entryPx = () => S.b.O[S.t + 1];
+
+// One coin file is loaded per chart (GitHub Pages library); only the current coin stays in memory.
+let COINS = [], loadingChart = false;
+async function newChart() {
+  if (loadingChart || !COINS.length) return;
+  const sym = COINS[Math.floor(Math.random() * COINS.length)];
+  if (!DATA[sym]) {
+    loadingChart = true; say("Loading a new chart…");
+    try { const r = await fetch(LIB + sym + ".json"); if (!r.ok) throw new Error(r.status); DATA = { [sym]: await r.json() }; }
+    catch (e) { say("Could not load the chart. Check your connection, then press <b>New chart</b>."); return; }
+    finally { loadingChart = false; }
+  }
+  const b = decode(sym);
+  let t = 5200 + Math.floor(Math.random() * (b.C.length - 5200 - MAXHOLD - 400)); t = t - (t % 4) + 3;  // start on a full hour
+  S = { sym, b, k: DATA[sym].base * Math.exp((Math.random() - 0.5) * 3), t, start: t, lines: [], trade: null, done: false, dir: 0, sl: null, tp: null };
+  pending = null; yMan = null; tool = null; setTool(null); setTag(""); $("ticket").hidden = true;
+  $("bLong").classList.remove("on"); $("bShort").classList.remove("on");
+  $("bNew").textContent = "New chart"; $("bNew").classList.remove("primary"); $("msg").parentNode.className = "msg";
+  refresh(); hint();
+}
+
+// ---------- drawing ----------
+let geo = null;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function draw() {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = css("--panel"); ctx.fillRect(0, 0, w, h);
+  if (!S) return;
+  const b = S.b, m = tfm, V = Math.round(nBars), slots = V + MARGIN, axis = 70;
+  const upto = S.trade ? S.trade.shown : S.t, lastJ = Math.floor(upto / m), nowJ = Math.floor(S.t / m);
+  const first = Math.max(0, nowJ - V + 1, lastJ - slots + 6);
+  const pw = w - axis, ph = h - 26, sw = pw / slots;
+  const bars = []; let hi = -Infinity, lo = Infinity;
+  for (let j = first; j <= lastJ; j++) { const k = candle(b, m, j, upto); bars.push(k); if (k.h > hi) hi = k.h; if (k.l < lo) lo = k.l; }
+  for (const v of [S.sl, S.tp].filter(v => v != null)) { hi = Math.max(hi, v); lo = Math.min(lo, v); }
+  const pad = (hi - lo) * 0.08; hi += pad; lo -= pad;
+  if (yMan) { hi = yMan.mid + yMan.half; lo = yMan.mid - yMan.half; }
+  const X = t15 => (t15 / m - first) * sw, Y = u => 8 + (hi - u) / (hi - lo) * ph;
+  geo = { first, sw, hi, lo, ph, pw, m, Y };
+
+  ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textBaseline = "middle";
+  const step = niceStep((hi - lo) * S.k / 8);
+  for (let p = Math.ceil(lo * S.k / step) * step; p < hi * S.k; p += step) {
+    const y = Y(p / S.k); ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke();
+    ctx.fillStyle = css("--muted"); ctx.fillText(fmt(p), pw + 6, y);
+  }
+  // time labels (hidden coin, so show day count only: D1, D2 …)
+  ctx.fillStyle = css("--muted");
+  const lblEvery = Math.max(1, Math.ceil(70 / sw));
+  for (let j = first; j <= first + slots; j++) if ((j - first) % lblEvery === 0) {
+    const d = new Date(b.t0 + j * m * M15);
+    ctx.fillText(m >= 96 ? `${d.getUTCDate()}/${d.getUTCMonth() + 1}` : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`, X(j * m) + 2, h - 10);
+  }
+  if (S.trade) { const x = X(S.t + 1); ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 20); ctx.stroke(); ctx.setLineDash([]); }
+
+  const bw = Math.max(1, sw * 0.7), up = css("--up"), dn = css("--down");
+  bars.forEach((k, n) => {
+    const x = X((first + n + 0.5) * m), c = k.c >= k.o ? up : dn;
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, Y(k.h)); ctx.lineTo(x, Y(k.l)); ctx.stroke();
+    const yt = Y(Math.max(k.o, k.c)), yb = Y(Math.min(k.o, k.c));
+    ctx.fillRect(x - bw / 2, yt, bw, Math.max(1, yb - yt));
+  });
+  ctx.lineWidth = 1.6;
+  for (const l of S.lines) {
+    if (l.t === "h") { ctx.strokeStyle = css("--level"); ctx.beginPath(); ctx.moveTo(0, Y(l.p)); ctx.lineTo(pw, Y(l.p)); ctx.stroke(); }
+    else { const yAt = t => l.p1 + (l.p2 - l.p1) * (t - l.t1) / (l.t2 - l.t1), end = (first + slots) * m;
+      ctx.strokeStyle = css("--trend"); ctx.beginPath(); ctx.moveTo(X(l.t1), Y(l.p1)); ctx.lineTo(X(end), Y(yAt(end))); ctx.stroke(); }
+  }
+  if (tool === "t" && tool2) { ctx.fillStyle = css("--trend"); ctx.beginPath(); ctx.arc(X(tool2.t), Y(tool2.p), 4, 0, 7); ctx.fill(); }
+  const tag = (u, c, label) => { const y = Y(u); ctx.strokeStyle = c; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = c; ctx.fillRect(pw, y - 8, axis, 16); ctx.fillStyle = css("--panel"); ctx.fillText(label, pw + 4, y); };
+  const tr = S.trade || pending;
+  if (tr) { tag(tr.entry, css("--accent"), "ENTRY"); tag(tr.sl, dn, "STOP"); tag(tr.tp, up, "TARGET"); }
+  if (!S.trade) { const y = Y(b.C[S.t]); ctx.fillStyle = css("--fg"); ctx.fillRect(pw, y - 8, axis, 16); ctx.fillStyle = css("--panel"); ctx.fillText(fmt(P(b.C[S.t])), pw + 4, y); }
+}
+function niceStep(x) { const e = Math.pow(10, Math.floor(Math.log10(x))), r = x / e; return (r < 1.5 ? 1 : r < 3.5 ? 2 : r < 7.5 ? 5 : 10) * e; }
+
+// ---------- interaction ----------
+function at(ev) {
+  const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+  return { x, y, t: (x / geo.sw + geo.first) * geo.m, p: geo.hi - (y - 8) / geo.ph * (geo.hi - geo.lo) };
+}
+const manual = () => (yMan = yMan || { mid: (geo.hi + geo.lo) / 2, half: (geo.hi - geo.lo) / 2 });
+const zoomPrice = f => { if (geo) { manual().half *= f; draw(); } };
+const zoomTime = f => { nBars = Math.min(400, Math.max(25, nBars * f)); draw(); };
+const startPan = ev => { drag = { kind: "pan", y0: ev.clientY, mid0: manual().mid }; cv.setPointerCapture(ev.pointerId); };
+cv.addEventListener("pointerdown", ev => {
+  if (!S || !geo) return;
+  const q = at(ev);
+  if (q.x > geo.pw) { drag = { kind: "axis", y0: ev.clientY, half0: manual().half }; cv.setPointerCapture(ev.pointerId); return; }
+  if (S.trade) { startPan(ev); return; }
+  if (S.dir) {
+    manual();  // freeze the scale so the line follows the pointer
+    const dT = Math.abs(q.y - geo.Y(S.tp)), dS = Math.abs(q.y - geo.Y(S.sl));
+    dragging = dT < 14 && dT < dS ? "tp" : "sl"; cv.setPointerCapture(ev.pointerId);
+    if (dragging === "sl" && dS >= 14) setStop(q.p);
+    return;
+  }
+  if (tool === "h") { S.lines.push({ t: "h", p: q.p }); draw(); hint(); }
+  else if (tool === "t") {
+    if (!tool2) { tool2 = q; draw(); say("Now click a second point to finish the trend line."); }
+    else if (Math.abs(q.t - tool2.t) > 0.5) { S.lines.push({ t: "t", t1: tool2.t, p1: tool2.p, t2: q.t, p2: q.p }); tool2 = null; draw(); hint(); }
+  } else startPan(ev);
+});
+cv.addEventListener("pointermove", ev => {
+  if (!geo || !S) return;
+  const q = at(ev);
+  if (drag && drag.kind === "axis") { yMan.half = drag.half0 * Math.exp((ev.clientY - drag.y0) * 0.008); draw(); }
+  else if (drag) { yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half; draw(); }
+  else if (dragging && S.dir && !S.trade) (dragging === "tp" ? setTarget : setStop)(q.p);
+  const near = S.dir && !S.trade && S.sl != null && (Math.abs(q.y - geo.Y(S.tp)) < 14 || Math.abs(q.y - geo.Y(S.sl)) < 14);
+  cv.style.cursor = q.x > geo.pw || near || dragging ? "ns-resize" : drag ? "grabbing" : "crosshair";
+});
+const endDrag = () => { dragging = false; drag = null; };
+cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
+cv.addEventListener("dblclick", ev => { if (geo && at(ev).x > geo.pw) { yMan = null; draw(); } });
+cv.addEventListener("wheel", ev => { if (!geo) return; ev.preventDefault(); const f = Math.exp(ev.deltaY * 0.0012); at(ev).x > geo.pw ? zoomPrice(f) : zoomTime(f); }, { passive: false });
+function setTool(t) { tool = tool === t ? null : t; tool2 = null; $("bLevel").classList.toggle("on", tool === "h"); $("bTrend").classList.toggle("on", tool === "t"); }
+
+function chooseSide(d) {
+  if (S.trade || S.done) return;
+  if (d !== S.dir && coolLeft() > 0) { session(); return; }
+  S.dir = S.dir === d ? 0 : d; S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
+  $("bLong").classList.toggle("on", S.dir === 1); $("bShort").classList.toggle("on", S.dir === -1);
+  $("ticket").hidden = !S.dir;
+  if (S.dir) { const e = entryPx(), a = atr(); S.tp = e + S.dir * 3 * a; setStop(e - S.dir * 1.5 * a); }
+  else { hint(); draw(); }
+}
+function setStop(p) {
+  if (!(S.dir * (entryPx() - p) > 0)) { say(`<b>The stop must be ${S.dir > 0 ? "BELOW" : "ABOVE"} the entry</b> (blue line).`); return; }
+  S.sl = p; levels();
+}
+function setTarget(p) {
+  if (!(S.dir * (p - entryPx()) > 0)) { say(`<b>The target must be ${S.dir > 0 ? "ABOVE" : "BELOW"} the entry</b> (blue line).`); return; }
+  S.tp = p; levels();
+}
+function levels() {
+  const entry = entryPx(), risk = S.dir * (entry - S.sl), rr = S.dir * (S.tp - entry) / risk, feeR = 2 * FEE * entry / risk;
+  pending = { entry, sl: S.sl, tp: S.tp };
+  if (document.activeElement !== $("iStop")) $("iStop").value = fmt(P(S.sl));
+  if (document.activeElement !== $("iTp")) $("iTp").value = fmt(P(S.tp));
+  let warn = feeR > 0.3 ? ` <b class="neg">⚠ Stop too close: fees alone cost ${feeR.toFixed(2)}R.</b>` : risk < 0.5 * atr() ? ` <b class="neg">⚠ Very tight stop.</b>` : "";
+  say(`<b>${S.dir > 0 ? "BUY" : "SELL"}:</b> drag the red STOP and green TARGET lines. Target = <b>${rr.toFixed(2)}R</b>, stop ${(100 * risk / entry).toFixed(2)}% away, fees ${feeR.toFixed(2)}R.${warn}`);
+  draw();
+}
+
+function placeTrade() {
+  if (!pending) return;
+  const b = S.b, from = S.t + 1, { entry, sl, tp } = pending, risk = S.dir * (entry - sl);
+  const hold = HOLD[tfm], res = simulate(b, from, S.dir, sl, tp, hold);
+  const flipRes = simulate(b, from, -S.dir, entry + S.dir * risk, entry - (tp - entry), hold);
+  const you = netR(S.dir, entry, risk, res.px), other = netR(-S.dir, entry, risk, flipRes.px);
+  S.trade = { entry, sl, tp, res, you, flip: (you + other) / 2, tag: curTag || "Untagged", withTrend: S.dir === bias(), shown: S.t, tf: TFN[tfm], days: hold / 96 };
+  pending = null; $("ticket").hidden = true; $("bFast").hidden = false; lock(true);
+  say(`Trade running… entry ${fmt(P(entry))}, stop ${fmt(P(sl))}, target ${fmt(P(tp))}.`);
+  timer = setInterval(() => { S.trade.shown = Math.min(S.trade.shown + Math.max(1, tfm / 2), res.i); draw(); if (S.trade.shown >= res.i) finish(); }, 110);
+}
+function finish() {
+  clearInterval(timer); timer = null;
+  const t = S.trade; t.shown = Math.min(t.res.i + 4 * tfm, S.b.C.length - 1);
+  const d = new Date(S.b.t0 + (S.t + 1) * M15), coin = S.sym.replace("USDT", "");
+  const row = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), coin, date: d.toISOString().slice(0, 16).replace("T", " "), tf: t.tf, played: Date.now(), side: S.dir > 0 ? "Long" : "Short", tag: t.tag,
+    r: +((t.tp - t.entry) / (t.entry - t.sl)).toFixed(2), withTrend: t.withTrend, how: t.res.how,
+    you: +t.you.toFixed(3), flip: +t.flip.toFixed(3), hours: +((t.res.i - S.t) / 4).toFixed(2) };
+  journal.push(row); save(); cloudSave(row); fileSave(); S.done = true; $("bFast").hidden = true; lock(false); draw(); renderStats();
+  $("bNew").textContent = "Next chart →"; $("bNew").classList.add("primary"); $("msg").parentNode.className = "msg " + (t.you >= 0 ? "win" : "loss");
+  const word = t.res.how === "target" ? "Target hit" : t.res.how === "stop" ? "Stopped out" : `Closed after ${t.days} days (time limit)`;
+  say(`<b>${t.you >= 0 ? "WIN" : "LOSS"}: ${word}, ${t.you >= 0 ? "+" : ""}${t.you.toFixed(2)}R</b> after fees. It was <b>${coin}</b>, ${d.toUTCString().slice(5, 16)}. ${t.withTrend ? "" : "Against the big trend. "}Press <b>Next chart →</b>`);
+}
+function lock(on) { for (const id of ["b1", "b6", "b24", "bNew", "bLong", "bShort", "bUndo", "bClear"]) $(id).disabled = on; if (!on) session(); }
+
+function wait(n) {
+  if (!S || S.trade) return;
+  if (S.done) { newChart(); return; }
+  S.t = Math.min(S.t + n * tfm, S.b.C.length - MAXHOLD - 2);
+  if (S.dir) chooseSide(S.dir);
+  refresh(); hint();
+}
+function setTF(m) {
+  tfm = m; yMan = null;
+  document.querySelectorAll("button.tf").forEach(x => x.classList.toggle("on", +x.dataset.m === m));
+  if (S) refresh();
+}
+function refresh() {
+  const bz = bias();
+  $("cTrend").textContent = `Big trend (50-day avg): ${bz > 0 ? "UP, buys only" : "DOWN, sells only"}`;
+  $("cTrend").className = "chip " + (bz > 0 ? "up" : "down");
+  $("cAtr").textContent = `1H ATR ${fmt(P(atr()))}`;
+  $("cBars").textContent = `Waited ${((S.t - S.start) / 4).toFixed(S.t % 4 === 3 ? 0 : 2)}h`;
+  draw();
+}
+const say = h => { $("msg").innerHTML = h; };
+function hint() {
+  if (!S || S.trade || S.done || S.dir) return;
+  say(!S.lines.length ? "Look at <b>1D</b> and <b>4H</b> first. Then press <b>S/R line</b> or <b>Trend line</b> and click the chart to draw."
+    : "Press <b>Next bar ▸</b> until price reaches your line, then press <b>Buy</b> or <b>Sell</b>.");
+}
+
+// ---------- scorecard ----------
+function agg(rows) {
+  const n = rows.length; if (!n) return null;
+  const s = k => rows.reduce((a, r) => a + r[k], 0);
+  return { n, win: rows.filter(r => r.you > 0).length / n, you: s("you") / n, flip: s("flip") / n, tot: s("you") };
+}
+const sg = v => `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}R</span>`;
+function renderStats() {
+  const a = agg(journal);
+  if (!a) { $("stats").innerHTML = "<span>Trades</span><span>0</span>"; $("verdict").textContent = "The scorecard compares you to a coin flip with the same stop and target, so luck can't fool you."; renderJournal(); return; }
+  const rows = [["Trades", a.n], ["Win rate", (a.win * 100).toFixed(0) + "%"], ["Average per trade", sg(a.you)], ["Coin flip, same stops", sg(a.flip)], ["Your edge over chance", sg(a.you - a.flip)], ["Total", sg(a.tot)]];
+  for (const tf of ["15m", "1H", "4H", "1D"]) { const g = agg(journal.filter(r => (r.tf || "1H") === tf)); if (g) rows.push([`${tf} trades (${g.n})`, `${sg(g.you)} vs flip ${sg(g.flip)}`]); }
+  const wt = agg(journal.filter(r => r.withTrend)), ag = agg(journal.filter(r => !r.withTrend));
+  if (wt) rows.push([`With trend (${wt.n})`, sg(wt.you)]);
+  if (ag) rows.push([`Against trend (${ag.n})`, sg(ag.you)]);
+  for (const tag of [...new Set(journal.map(r => r.tag))]) { const g = agg(journal.filter(r => r.tag === tag)); rows.push([`${tag} (${g.n})`, sg(g.you)]); }
+  // edge per trade = you - coin flip; luck band = 2 standard errors
+  const ed = journal.map(r => r.you - r.flip), edge = ed.reduce((x, y) => x + y, 0) / a.n;
+  const se = a.n > 1 ? Math.sqrt(ed.reduce((x, y) => x + (y - edge) ** 2, 0) / (a.n - 1) / a.n) : Infinity;
+  const lo = edge - 2 * se, hi = edge + 2 * se;
+  rows.push(["Luck range of your edge", a.n > 1 ? `${sg(lo)} to ${sg(hi)}` : "…"]);
+  $("stats").innerHTML = rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("");
+  $("verdict").innerHTML = a.n < 50 ? `${50 - a.n} more trades before any verdict. Right now your true edge could be anywhere in the luck range above.`
+    : lo > 0 ? `<b class="pos">Real skill: you beat a coin flip by ${edge.toFixed(2)}R per trade, and the whole luck range is above zero.</b>`
+    : hi < 0 ? `<b class="neg">You are doing worse than a coin flip, and it's not bad luck.</b> Your side choice is costing you; look at which setup type loses most.`
+    : `<b>Not proven yet.</b> Your edge is ${sg(edge)} per trade but the luck range still includes zero. Keep training; the range narrows with every trade.`;
+  renderJournal(); renderCurve(); session();
+}
+// rolling 20-trade average of (you - coin flip), one point per trade from trade 20 on
+function renderCurve() {
+  const W = 20, ed = journal.map(r => r.you - r.flip), box = $("curveBox");
+  box.hidden = ed.length < W; if (box.hidden) return;
+  const pts = []; let s = ed.slice(0, W).reduce((x, y) => x + y, 0); pts.push(s / W);
+  for (let i = W; i < ed.length; i++) { s += ed[i] - ed[i - W]; pts.push(s / W); }
+  const lim = Math.max(0.5, ...pts.map(Math.abs)) * 1.1, X = i => pts.length < 2 ? 150 : 4 + i * 292 / (pts.length - 1), Y = v => 35 - v / lim * 31;
+  const c = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  $("curve").innerHTML = `<line x1="0" x2="300" y1="35" y2="35" stroke="${c("--muted")}" stroke-width="1" vector-effect="non-scaling-stroke"/>`
+    + `<polyline fill="none" stroke="${c("--accent")}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" points="${pts.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}"/>`;
+  const tipFor = i => `trades ${i + 1}-${i + W}: ${pts[i] >= 0 ? "+" : ""}${pts[i].toFixed(2)}R`;
+  const rest = () => { $("curveTip").textContent = "latest 20: " + tipFor(pts.length - 1).split(": ")[1]; };
+  rest();
+  $("curve").onpointermove = ev => { const r = $("curve").getBoundingClientRect(), i = Math.round((ev.clientX - r.left) / r.width * (pts.length - 1)); $("curveTip").textContent = tipFor(Math.max(0, Math.min(pts.length - 1, i))); };
+  $("curve").onpointerleave = rest;
+}
+// ---------- session guard ----------
+const COOL_MS = 10 * 60e3, DAY_CAP = 10;
+let paused = false;
+function lossStreak() { let k = 0; for (let i = journal.length - 1; i >= 0 && journal[i].you < 0; i--) k++; return k; }
+function coolLeft() { const last = journal[journal.length - 1]; return last && last.played && lossStreak() >= 3 ? last.played + COOL_MS - Date.now() : 0; }
+function session() {
+  const today = new Date().toDateString(), n = journal.filter(r => r.played && new Date(r.played).toDateString() === today).length, k = lossStreak(), left = coolLeft();
+  $("cSession").textContent = `Today: ${n} trade${n === 1 ? "" : "s"}${k ? ` · ${k} loss${k === 1 ? "" : "es"} in a row` : ""}${n >= DAY_CAP ? " · past your 10/day limit" : ""}`;
+  $("cSession").className = "chip" + (n >= DAY_CAP || k >= 3 ? " warn" : "");
+  if (!S) return;
+  const cool = left > 0 && !S.trade && !S.done;
+  $("bLong").disabled = $("bShort").disabled = cool || !!S.trade;
+  if (cool) { paused = true; say(`<b>Pause: 3 losses in a row.</b> Buy and Sell come back in ${Math.ceil(left / 60e3)} min. Use the time to redraw your levels on 4H and 1D.`); }
+  else if (paused) { paused = false; hint(); }
+}
+setInterval(() => { if (journal.length && coolLeft() > -60e3) session(); }, 15e3);
+function setTag(t) {
+  curTag = t;
+  document.querySelectorAll("button.tag").forEach(b => b.classList.toggle("on", b.dataset.tag === t));
+  $("bStart").disabled = !t; $("bStart").textContent = t ? "▶ Start trade" : "Pick a setup first";
+}
+function renderJournal() {
+  $("jt").innerHTML = journal.slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${r.date.slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${r.tag}</td><td>${sg(r.you)}</td><td>${sg(r.flip)}</td></tr>`).join("")
+    || `<tr><td colspan="7" class="small">Your trades will appear here.</td></tr>`;
+}
+let resetArmed = false;
+$("bReset").onclick = () => {
+  if (!resetArmed) { resetArmed = true; $("bReset").textContent = "Click again to erase"; setTimeout(() => { resetArmed = false; $("bReset").textContent = "Reset"; }, 3000); return; }
+  const old = journal; journal = []; save(); renderStats(); resetArmed = false; $("bReset").textContent = "Reset";
+  if (DB) (async () => { for (const r of old) if (r.id) { try { await DB.collection("trades").doc(r.id).delete(); } catch (e) {} } })();
+  fileSave();
+};
+$("bCopy").onclick = () => {
+  const csv = ["coin,date,tf,side,setup,target_R,with_trend,exit,you_R,coinflip_R", ...journal.map(r => [r.coin, r.date, r.tf || "1H", r.side, r.tag, r.r, r.withTrend, r.how, r.you, r.flip].join(","))].join("\n");
+  navigator.clipboard.writeText(csv).then(() => say("Journal copied. Paste it to Claude for a review."), () => say("Copy was blocked here. Your journal is still saved in this browser."));
+};
+
+// ---------- wiring ----------
+document.querySelectorAll("button.tf").forEach(x => x.onclick = () => setTF(+x.dataset.m));
+$("bLevel").onclick = () => { if (S && S.dir) chooseSide(S.dir); setTool("h"); say("Click the chart where the support or resistance is."); };
+$("bTrend").onclick = () => { if (S && S.dir) chooseSide(S.dir); setTool("t"); say("Click the first point of the trend line."); };
+$("bUndo").onclick = () => { if (S) { S.lines.pop(); draw(); } };
+$("bClear").onclick = () => { if (S) { S.lines = []; draw(); } };
+$("b1").onclick = () => wait(1); $("b6").onclick = () => wait(6); $("b24").onclick = () => wait(24);
+$("bZin").onclick = () => { zoomTime(0.8); if (yMan) zoomPrice(0.8); };
+$("bZout").onclick = () => { zoomTime(1.25); if (yMan) zoomPrice(1.25); };
+$("bFit").onclick = () => { yMan = null; draw(); };
+$("bNew").onclick = () => { if (!S || !S.trade || S.done) newChart(); };
+$("bLong").onclick = () => chooseSide(1); $("bShort").onclick = () => chooseSide(-1);
+$("bStart").onclick = placeTrade;
+document.querySelectorAll("button.tag").forEach(b => b.onclick = () => setTag(curTag === b.dataset.tag ? "" : b.dataset.tag));
+$("bCancel").onclick = () => { if (S && S.dir) chooseSide(S.dir); };
+$("bFast").onclick = () => { if (timer) { S.trade.shown = S.trade.res.i; finish(); } };
+$("iStop").oninput = () => { const v = parseFloat($("iStop").value); if (S && S.dir && v > 0) setStop(v / S.k); };
+$("iTp").oninput = () => { const v = parseFloat($("iTp").value); if (S && S.dir && v > 0) setTarget(v / S.k); };
+$("sR").onchange = () => { const k = +$("sR").value; if (S && S.dir && k) { const e = entryPx(); S.tp = e + k * (e - S.sl); levels(); } $("sR").value = ""; };
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  if (k === "n") wait(1); else if (k === "s") $("bLevel").click(); else if (k === "t") $("bTrend").click();
+  else if (k === "escape") { setTool(null); if (S && S.dir) chooseSide(S.dir); }
+});
+// ---------- journal file on disk (Chrome/Edge), plus Export/Import everywhere else ----------
+// The file handle is kept in IndexedDB so the same file is reused on every visit.
+let fileH = null, fileQ = Promise.resolve();
+const idb = (op, v) => new Promise((ok, no) => { const q = indexedDB.open("levelDesk", 1); q.onupgradeneeded = () => q.result.createObjectStore("kv");
+  q.onerror = () => no(q.error); q.onsuccess = () => { try { const t = q.result.transaction("kv", op === "get" ? "readonly" : "readwrite"), st = t.objectStore("kv");
+    const r = op === "get" ? st.get("file") : st.put(v, "file"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); } catch (e) { no(e); } }; });
+function mergeIn(trades) {
+  const ids = new Set(journal.map(r => r.id)); let added = 0;
+  for (const r of trades) {
+    if (!r || typeof r.you !== "number" || typeof r.flip !== "number") continue;
+    if (!r.id) r.id = "0old-" + String(r.coin + r.date + r.side).replace(/[^A-Za-z0-9-]/g, "");
+    if (!ids.has(r.id)) { journal.push(r); ids.add(r.id); added++; }
+  }
+  journal.sort((x, y) => (String(x.id) < String(y.id) ? -1 : 1)); save(); renderStats(); return added;
+}
+function fileSave() {
+  if (!fileH) return;
+  const body = JSON.stringify({ app: "level-desk-trainer", saved: new Date().toISOString(), trades: journal }, null, 1);
+  fileQ = fileQ.then(async () => { const w = await fileH.createWritable(); await w.write(body); await w.close(); fileOk(); })
+    .catch(() => { $("cSave").textContent = "Journal: file save failed, kept in browser"; $("cSave").className = "chip warn"; });
+}
+function fileOk() { $("cSave").textContent = `Journal: browser + file ${fileH.name} ✓ (${journal.length})`; $("cSave").className = "chip"; $("fileNote").hidden = true; }
+async function useFile(h, readFirst) {
+  fileH = h; try { await idb("put", h); } catch (e) {}
+  if (readFirst) {
+    try { const t = await (await h.getFile()).text(); const n = t.trim() ? mergeIn(JSON.parse(t).trades || []) : 0; say(`Journal file connected. ${n} trade${n === 1 ? "" : "s"} loaded from it.`); }
+    catch (e) { say("That file is not a trainer journal. Pick another or create a new one."); fileH = null; return; }
+  }
+  fileSave();
+}
+const pickOpts = { types: [{ description: "Trainer journal", accept: { "application/json": [".json"] } }] };
+if (HOST === "pages") {
+  $("bExport").hidden = $("bImport").hidden = false;
+  $("bExport").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({ app: "level-desk-trainer", trades: journal }, null, 1)], { type: "application/json" })); a.download = "trainer-journal.json"; a.click(); };
+  $("bImport").onclick = () => $("fImport").click();
+  $("fImport").onchange = async () => {
+    const f = $("fImport").files[0]; if (!f) return;
+    try { const n = mergeIn(JSON.parse(await f.text()).trades || []); say(`${n} trade${n === 1 ? "" : "s"} imported.`); } catch (e) { say("That file is not a trainer journal."); }
+    $("fImport").value = "";
+  };
+  if (window.showSaveFilePicker) {
+    $("bFileNew").hidden = $("bFileOpen").hidden = false;
+    $("bFileNew").onclick = async () => { try { await useFile(await showSaveFilePicker({ suggestedName: "trainer-journal.json", ...pickOpts }), false); } catch (e) {} };
+    $("bFileOpen").onclick = async () => { try { const [h] = await showOpenFilePicker(pickOpts); await useFile(h, true); } catch (e) {} };
+    (async () => {   // reconnect last visit's file; Chrome may need one click to allow it again
+      let h = null; try { h = await idb("get"); } catch (e) {}
+      if (!h) { $("fileNote").hidden = false; $("fileNote").textContent = "Tip: press \"Open journal file…\" or \"New journal file…\" once and every trade is also written to a file on your PC."; return; }
+      if (await h.queryPermission({ mode: "readwrite" }) === "granted") { await useFile(h, true); return; }
+      $("fileNote").hidden = false; $("fileNote").innerHTML = `<button id="bReconnect">Reconnect ${h.name}</button> to keep saving trades to your file.`;
+      $("bReconnect").onclick = async () => { if (await h.requestPermission({ mode: "readwrite" }) === "granted") await useFile(h, true); };
+    })();
+  }
+}
+// ---------- cloud journal (artifact database), browser storage stays as the offline copy ----------
+let DB = null;
+function cloudSave(row) {
+  if (!DB) return;
+  DB.collection("trades").doc(row.id).set(row).catch(() => { $("cSave").textContent = "Journal: cloud save failed, kept in browser"; });
+}
+(async () => {
+  const db = window.claude && await window.claude.use("db");
+  if (!db) return;
+  DB = db; let merged = false;
+  db.collection("trades").onSnapshot(async snap => {
+    const cloud = snap.docs.map(d => d.data()), ids = new Set(cloud.map(r => r.id));
+    if (!merged && !snap.metadata.fromCache) {   // one-time upload of trades made before the cloud journal existed
+      merged = true;
+      for (const r of journal) { if (!r.id) r.id = "0old-" + (r.coin + r.date + r.side).replace(/[^A-Za-z0-9-]/g, ""); if (!ids.has(r.id)) { try { await db.collection("trades").doc(r.id).set(r); } catch (e) {} } }
+    }
+    // union: a trade whose cloud write failed stays from the browser copy
+    journal = cloud.concat(journal.filter(r => !r.id || !ids.has(r.id))).sort((x, y) => (String(x.id) < String(y.id) ? -1 : 1)); save(); renderStats();
+    $("cSave").textContent = `Journal: saved to your account ✓ (${journal.length})`;
+  }, () => { $("cSave").textContent = "Journal: this browser only"; });
+})();
+new ResizeObserver(() => draw()).observe(cv);
+const LIB = "trainer-lib/";
+setTF(4); renderStats();
+fetch(LIB + "index.json").then(r => r.json()).then(list => { COINS = list; DATA = {}; newChart(); })
+  .catch(() => say("Could not load the chart library. Reload the page to try again."));
+</script>
