@@ -107,8 +107,7 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
       <label for="iStop">Stop <input id="iStop" type="number" step="any" inputmode="decimal"></label>
       <label for="iTp">Target <input id="iTp" type="number" step="any" inputmode="decimal"></label>
       <select id="sR" aria-label="Quick target"><option value="">Target = …</option><option value="1">1R</option><option value="1.5">1.5R</option><option value="2">2R</option><option value="3">3R</option></select>
-      <span class="tags" id="tags"><span class="lbl">Setup:</span><button class="tag" data-tag="Bounce off level">Bounce</button><button class="tag" data-tag="Break of level">Break</button><button class="tag" data-tag="Retest after break">Retest</button><button class="tag" data-tag="Trend line bounce">TL bounce</button><button class="tag" data-tag="Trend line break">TL break</button><button class="tag" data-tag="Other">Other</button></span>
-      <button class="primary" id="bStart" disabled>Pick a setup first</button>
+      <button class="primary" id="bStart">▶ Start trade</button>
       <button id="bCancel">Cancel</button>
     </div>
     <div class="msg"><span id="msg">Loading 2 years of real candles…</span><button id="bFast" hidden>Fast forward ▸▸</button></div>
@@ -118,11 +117,12 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
     <div class="card">
       <h2>How to play</h2>
       <ol>
-        <li>Check <b>1D</b> and <b>4H</b> for the big picture, then trade on <b>1H</b> or <b>15m</b>.</li>
+        <li><b>1D</b>: read the trend. Draw support and resistance on <b>1D</b> and <b>4H</b>, then trade on <b>4H</b>.</li>
         <li><b>S/R line</b>: click an old swing high or low. <b>Trend line</b>: two clicks. Lines stay on every timeframe.</li>
         <li><b>Next bar ▸</b> until price reaches your line.</li>
-        <li><b>Buy</b> or <b>Sell</b>, drag the red STOP and green TARGET lines, tap the <b>setup</b> you are trading, then <b>▶ Start trade</b>.</li>
+        <li><b>Buy</b> or <b>Sell</b>, drag the red STOP and green TARGET lines, then <b>▶ Start trade</b>.</li>
       </ol>
+      <p class="small">The trainer names the setup for you from where price sits in the last 50 candles: <b>bounce</b> (buying low / selling high), <b>breakout</b> (buying high / selling low) or <b>middle of range</b> (no level nearby, your weakest spot so far).</p>
       <p class="small">Zoom: drag the price numbers on the right, drag the chart to move it, mouse wheel for time. Fill = next candle's open, 0.05% fee per side.</p>
     </div>
     <div class="card">
@@ -154,7 +154,7 @@ const $ = id => document.getElementById(id);
 const cv = $("cv"), ctx = cv.getContext("2d");
 let DATA = null, S = null, tfm = 4, nBars = 140, yMan = null, drag = null, dragging = false, tool = null, tool2 = null, pending = null, timer = null;
 const HOST = "pages";   // build.py switches this to "artifact" for the claude.ai copy
-let journal = [], curTag = "";
+let journal = [];
 try { journal = JSON.parse(localStorage.getItem("levelDeskJournal") || "[]"); } catch (e) { journal = []; }
 const save = () => { try { localStorage.setItem("levelDeskJournal", JSON.stringify(journal)); } catch (e) {} };
 
@@ -201,6 +201,20 @@ function atr() {  // ATR(14) of completed 1H candles
   return s / 14;
 }
 const entryPx = () => S.b.O[S.t + 1];
+// Where price sits in the last 50 candles of the timeframe being traded (0 = range low, 1 = range high),
+// and the setup that implies for the chosen side. Same rule as the 2026-10-04 journal review.
+const SETUPS = ["Bounce at range edge", "Breakout at range edge", "Middle of range"];
+function setupOf(dir, pos) { return pos > 0.3 && pos < 0.7 ? SETUPS[2] : (dir > 0) === (pos <= 0.3) ? SETUPS[0] : SETUPS[1]; }
+function rangePos() {
+  const b = S.b, w = 50 * tfm; let hi = -Infinity, lo = Infinity;
+  for (let i = Math.max(0, S.t - w + 1); i <= S.t; i++) { if (b.H[i] > hi) hi = b.H[i]; if (b.L[i] < lo) lo = b.L[i]; }
+  return hi > lo ? (b.C[S.t] - lo) / (hi - lo) : 0.5;
+}
+function setupRecord(name) {
+  const g = journal.filter(r => (r.setup || "") === name);
+  return g.length ? { n: g.length, edge: g.reduce((a, r) => a + r.you - r.flip, 0) / g.length } : null;
+}
+console.assert(setupOf(1, 0.1) === SETUPS[0] && setupOf(-1, 0.9) === SETUPS[0] && setupOf(1, 0.9) === SETUPS[1] && setupOf(-1, 0.1) === SETUPS[1] && setupOf(1, 0.5) === SETUPS[2], "setup rule");
 
 // One coin file is loaded per chart (GitHub Pages library); only the current coin stays in memory.
 let COINS = [], loadingChart = false;
@@ -216,7 +230,7 @@ async function newChart() {
   const b = decode(sym);
   let t = 5200 + Math.floor(Math.random() * (b.C.length - 5200 - MAXHOLD - 400)); t = t - (t % 4) + 3;  // start on a full hour
   S = { sym, b, k: DATA[sym].base * Math.exp((Math.random() - 0.5) * 3), t, start: t, lines: [], trade: null, done: false, dir: 0, sl: null, tp: null };
-  pending = null; yMan = null; tool = null; setTool(null); setTag(""); $("ticket").hidden = true;
+  pending = null; yMan = null; tool = null; setTool(null); $("ticket").hidden = true;
   $("bLong").classList.remove("on"); $("bShort").classList.remove("on");
   $("bNew").textContent = "New chart"; $("bNew").classList.remove("primary"); $("msg").parentNode.className = "msg";
   refresh(); hint();
@@ -255,7 +269,7 @@ function draw() {
   const lblEvery = Math.max(1, Math.ceil(70 / sw));
   for (let j = first; j <= first + slots; j++) if ((j - first) % lblEvery === 0) {
     const d = new Date(b.t0 + j * m * M15);
-    ctx.fillText(m >= 96 ? `${d.getUTCDate()}/${d.getUTCMonth() + 1}` : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`, X(j * m) + 2, h - 10);
+    ctx.fillText(m >= 16 ? `${d.getUTCDate()}/${d.getUTCMonth() + 1}` : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`, X(j * m) + 2, h - 10);
   }
   if (S.trade) { const x = X(S.t + 1); ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 20); ctx.stroke(); ctx.setLineDash([]); }
 
@@ -346,7 +360,11 @@ function levels() {
   if (document.activeElement !== $("iStop")) $("iStop").value = fmt(P(S.sl));
   if (document.activeElement !== $("iTp")) $("iTp").value = fmt(P(S.tp));
   let warn = feeR > 0.3 ? ` <b class="neg">⚠ Stop too close: fees alone cost ${feeR.toFixed(2)}R.</b>` : risk < 0.5 * atr() ? ` <b class="neg">⚠ Very tight stop.</b>` : "";
-  say(`<b>${S.dir > 0 ? "BUY" : "SELL"}:</b> drag the red STOP and green TARGET lines. Target = <b>${rr.toFixed(2)}R</b>, stop ${(100 * risk / entry).toFixed(2)}% away, fees ${feeR.toFixed(2)}R.${warn}`);
+  const pos = rangePos(), name = setupOf(S.dir, pos), rec = setupRecord(name);
+  const recTxt = rec && rec.n >= 5 ? ` Your record here: ${sg(rec.edge)} vs the coin flip over ${rec.n} trades.` : "";
+  const where = `<br>Price is at <b>${Math.round(pos * 100)}%</b> of the last 50 ${TFN[tfm]} candles: <b>${name}</b>.${recTxt}`
+    + (name === SETUPS[2] ? ` <b class="neg">⚠ No level here. Middle-of-range trades have been your weakest.</b>` : "");
+  say(`<b>${S.dir > 0 ? "BUY" : "SELL"}:</b> drag the red STOP and green TARGET lines. Target = <b>${rr.toFixed(2)}R</b>, stop ${(100 * risk / entry).toFixed(2)}% away, fees ${feeR.toFixed(2)}R.${warn}${where}`);
   draw();
 }
 
@@ -356,7 +374,7 @@ function placeTrade() {
   const hold = HOLD[tfm], res = simulate(b, from, S.dir, sl, tp, hold);
   const flipRes = simulate(b, from, -S.dir, entry + S.dir * risk, entry - (tp - entry), hold);
   const you = netR(S.dir, entry, risk, res.px), other = netR(-S.dir, entry, risk, flipRes.px);
-  S.trade = { entry, sl, tp, res, you, flip: (you + other) / 2, tag: curTag || "Untagged", withTrend: S.dir === bias(), shown: S.t, tf: TFN[tfm], days: hold / 96 };
+  S.trade = { entry, sl, tp, res, you, flip: (you + other) / 2, tag: "Auto", pos: +rangePos().toFixed(3), setup: setupOf(S.dir, rangePos()), withTrend: S.dir === bias(), shown: S.t, tf: TFN[tfm], days: hold / 96 };
   pending = null; $("ticket").hidden = true; $("bFast").hidden = false; lock(true);
   say(`Trade running… entry ${fmt(P(entry))}, stop ${fmt(P(sl))}, target ${fmt(P(tp))}.`);
   timer = setInterval(() => { S.trade.shown = Math.min(S.trade.shown + Math.max(1, tfm / 2), res.i); draw(); if (S.trade.shown >= res.i) finish(); }, 110);
@@ -365,7 +383,7 @@ function finish() {
   clearInterval(timer); timer = null;
   const t = S.trade; t.shown = Math.min(t.res.i + 4 * tfm, S.b.C.length - 1);
   const d = new Date(S.b.t0 + (S.t + 1) * M15), coin = S.sym.replace("USDT", "");
-  const row = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), coin, date: d.toISOString().slice(0, 16).replace("T", " "), tf: t.tf, played: Date.now(), side: S.dir > 0 ? "Long" : "Short", tag: t.tag,
+  const row = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), coin, date: d.toISOString().slice(0, 16).replace("T", " "), tf: t.tf, played: Date.now(), side: S.dir > 0 ? "Long" : "Short", tag: t.tag, setup: t.setup, pos: t.pos,
     r: +((t.tp - t.entry) / (t.entry - t.sl)).toFixed(2), withTrend: t.withTrend, how: t.res.how,
     you: +t.you.toFixed(3), flip: +t.flip.toFixed(3), hours: +((t.res.i - S.t) / 4).toFixed(2) };
   journal.push(row); save(); cloudSave(row); fileSave(); S.done = true; $("bFast").hidden = true; lock(false); draw(); renderStats();
@@ -417,7 +435,7 @@ function renderStats() {
   const wt = agg(journal.filter(r => r.withTrend)), ag = agg(journal.filter(r => !r.withTrend));
   if (wt) rows.push([`With trend (${wt.n})`, sg(wt.you)]);
   if (ag) rows.push([`Against trend (${ag.n})`, sg(ag.you)]);
-  for (const tag of [...new Set(journal.map(r => r.tag))]) { const g = agg(journal.filter(r => r.tag === tag)); rows.push([`${tag} (${g.n})`, sg(g.you)]); }
+  for (const name of SETUPS) { const g = agg(journal.filter(r => r.setup === name)); if (g) rows.push([`${name} (${g.n})`, `${sg(g.you)} vs flip ${sg(g.flip)}`]); }
   // edge per trade = you - coin flip; luck band = 2 standard errors
   const ed = journal.map(r => r.you - r.flip), edge = ed.reduce((x, y) => x + y, 0) / a.n;
   const se = a.n > 1 ? Math.sqrt(ed.reduce((x, y) => x + (y - edge) ** 2, 0) / (a.n - 1) / a.n) : Infinity;
@@ -454,13 +472,8 @@ function session() {
   $("cSession").textContent = `Today: ${n} trade${n === 1 ? "" : "s"}${k ? ` · ${k} loss${k === 1 ? "" : "es"} in a row` : ""}`;
   $("cSession").className = "chip" + (k >= 3 ? " warn" : "");
 }
-function setTag(t) {
-  curTag = t;
-  document.querySelectorAll("button.tag").forEach(b => b.classList.toggle("on", b.dataset.tag === t));
-  $("bStart").disabled = !t; $("bStart").textContent = t ? "▶ Start trade" : "Pick a setup first";
-}
 function renderJournal() {
-  $("jt").innerHTML = journal.slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${r.date.slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${r.tag}</td><td>${sg(r.you)}</td><td>${sg(r.flip)}</td></tr>`).join("")
+  $("jt").innerHTML = journal.slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${r.date.slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${r.setup ? r.setup.split(" ")[0] : "–"}</td><td>${sg(r.you)}</td><td>${sg(r.flip)}</td></tr>`).join("")
     || `<tr><td colspan="7" class="small">Your trades will appear here.</td></tr>`;
 }
 let resetArmed = false;
@@ -488,7 +501,6 @@ $("bFit").onclick = () => { yMan = null; draw(); };
 $("bNew").onclick = () => { if (!S || !S.trade || S.done) newChart(); };
 $("bLong").onclick = () => chooseSide(1); $("bShort").onclick = () => chooseSide(-1);
 $("bStart").onclick = placeTrade;
-document.querySelectorAll("button.tag").forEach(b => b.onclick = () => setTag(curTag === b.dataset.tag ? "" : b.dataset.tag));
 $("bCancel").onclick = () => { if (S && S.dir) chooseSide(S.dir); };
 $("bFast").onclick = () => { if (timer) { S.trade.shown = S.trade.res.i; finish(); } };
 $("iStop").oninput = () => { const v = parseFloat($("iStop").value); if (S && S.dir && v > 0) setStop(v / S.k); };
@@ -507,11 +519,12 @@ const idb = (op, v) => new Promise((ok, no) => { const q = indexedDB.open("level
   q.onerror = () => no(q.error); q.onsuccess = () => { try { const t = q.result.transaction("kv", op === "get" ? "readonly" : "readwrite"), st = t.objectStore("kv");
     const r = op === "get" ? st.get("file") : st.put(v, "file"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); } catch (e) { no(e); } }; });
 function mergeIn(trades) {
-  const ids = new Set(journal.map(r => r.id)); let added = 0;
+  const ids = new Set(journal.map(r => r.id)), byId = new Map(journal.map(r => [r.id, r])); let added = 0;
   for (const r of trades) {
     if (!r || typeof r.you !== "number" || typeof r.flip !== "number") continue;
     if (!r.id) r.id = "0old-" + String(r.coin + r.date + r.side).replace(/[^A-Za-z0-9-]/g, "");
     if (!ids.has(r.id)) { journal.push(r); ids.add(r.id); added++; }
+    else if (r.setup && !byId.get(r.id).setup) Object.assign(byId.get(r.id), { setup: r.setup, pos: r.pos });
   }
   journal.sort((x, y) => (String(x.id) < String(y.id) ? -1 : 1)); save(); renderStats(); return added;
 }
@@ -576,7 +589,7 @@ function cloudSave(row) {
 })();
 new ResizeObserver(() => draw()).observe(cv);
 const LIB = "trainer-lib/";
-setTF(4); renderStats();
+setTF(16); renderStats();
 fetch(LIB + "index.json").then(r => r.json()).then(list => { COINS = list; DATA = {}; newChart(); })
   .catch(() => say("Could not load the chart library. Reload the page to try again."));
 </script>
