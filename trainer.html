@@ -83,7 +83,6 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
   <span class="chip" id="cTrend">Big trend: …</span>
   <span class="chip" id="cAtr">ATR …</span>
   <span class="chip" id="cBars">Waited 0h</span>
-  <span class="chip" id="cRange">Range …</span>
   <span class="chip" id="cSession">Today: 0 trades</span>
   <span class="chip" id="cSave">Journal: saved in this browser</span>
 </div>
@@ -134,7 +133,6 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
         <li><b>Next bar ▸</b> until price reaches your line.</li>
         <li><b>Buy</b> or <b>Sell</b>, drag the red STOP and green TARGET lines, then <b>▶ Start trade</b>.</li>
       </ol>
-      <p class="small"><b>The range is drawn for you:</b> the shaded bands are the top and bottom 30% of the last 50 candles. Price inside a band = a trade zone. Price in the unshaded middle = press <b>Next bar</b> and wait. The chip at the top says which one you are in.</p>
       <p class="small">Zoom: drag the price numbers on the right, drag the chart to move it, mouse wheel for time. Fill = next candle's open, 0.05% fee per side.</p>
     </div>
     <div class="card">
@@ -285,16 +283,6 @@ function draw() {
   if (S.trade) { const x = X(S.t + 1); ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 20); ctx.stroke(); ctx.setLineDash([]); }
 
   const bw = Math.max(1, sw * 0.7), up = css("--up"), dn = css("--down");
-  // range of the last 50 candles at the decision point: shaded top and bottom 30% = trade zones
-  { const rg = rangeHL(), x0 = Math.max(0, X(rg.from)), z = (rg.hi - rg.lo) * 0.3;
-    ctx.save(); ctx.globalAlpha = 0.10;
-    ctx.fillStyle = dn; ctx.fillRect(x0, Y(rg.hi), pw - x0, Y(rg.hi - z) - Y(rg.hi));
-    ctx.fillStyle = up; ctx.fillRect(x0, Y(rg.lo + z), pw - x0, Y(rg.lo) - Y(rg.lo + z));
-    ctx.restore(); ctx.strokeStyle = css("--muted"); ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
-    for (const v of [rg.hi, rg.lo]) { ctx.beginPath(); ctx.moveTo(x0, Y(v)); ctx.lineTo(pw, Y(v)); ctx.stroke(); }
-    ctx.setLineDash([]); ctx.fillStyle = css("--muted"); ctx.font = "10px 'IBM Plex Mono', monospace";
-    ctx.fillText("range high", x0 + 4, Y(rg.hi) + 9); ctx.fillText("range low", x0 + 4, Y(rg.lo) - 9);
-    ctx.font = "11px 'IBM Plex Mono', monospace"; }
   bars.forEach((k, n) => {
     const x = X((first + n + 0.5) * m), c = k.c >= k.o ? up : dn;
     ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 1;
@@ -381,11 +369,7 @@ function levels() {
   if (document.activeElement !== $("iStop")) $("iStop").value = fmt(P(S.sl));
   if (document.activeElement !== $("iTp")) $("iTp").value = fmt(P(S.tp));
   let warn = feeR > 0.3 ? ` <b class="neg">⚠ Stop too close: fees alone cost ${feeR.toFixed(2)}R.</b>` : risk < 0.5 * atr() ? ` <b class="neg">⚠ Very tight stop.</b>` : "";
-  const pos = rangePos(), name = setupOf(S.dir, pos), rec = setupRecord(name);
-  const recTxt = rec && rec.n >= 5 ? ` Your record here: ${sg(rec.edge)} vs the coin flip over ${rec.n} trades.` : "";
-  const where = `<br>Price is at <b>${Math.round(pos * 100)}%</b> of the last 50 ${TFN[tfm]} candles: <b>${name}</b>.${recTxt}`
-    + (name === SETUPS[2] ? ` <b class="neg">⚠ No level here. Middle-of-range trades have been your weakest.</b>` : "");
-  say(`<b>${S.dir > 0 ? "BUY" : "SELL"}:</b> drag the red STOP and green TARGET lines. Target = <b>${rr.toFixed(2)}R</b>, stop ${(100 * risk / entry).toFixed(2)}% away, fees ${feeR.toFixed(2)}R.${warn}${where}`);
+  say(`<b>${S.dir > 0 ? "BUY" : "SELL"}:</b> drag the red STOP and green TARGET lines. Target = <b>${rr.toFixed(2)}R</b>, stop ${(100 * risk / entry).toFixed(2)}% away, fees ${feeR.toFixed(2)}R.${warn}`);
   draw();
 }
 
@@ -431,8 +415,6 @@ function refresh() {
   $("cTrend").textContent = `Big trend (50-day avg): ${bz > 0 ? "UP, buys only" : "DOWN, sells only"}`;
   $("cTrend").className = "chip " + (bz > 0 ? "up" : "down");
   $("cAtr").textContent = `1H ATR ${fmt(P(atr()))}`;
-  { const pos = rangePos(), zone = pos >= 0.7 ? "TOP band" : pos <= 0.3 ? "BOTTOM band" : "MIDDLE, wait";
-    $("cRange").textContent = `Range ${Math.round(pos * 100)}% · ${zone}`; $("cRange").className = "chip" + (pos > 0.3 && pos < 0.7 ? " warn" : " edge"); }
   $("cBars").textContent = `Waited ${((S.t - S.start) / 4).toFixed(S.t % 4 === 3 ? 0 : 2)}h`;
   draw();
 }
