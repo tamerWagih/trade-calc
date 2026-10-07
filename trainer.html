@@ -29,6 +29,11 @@ button.tag.on { background: var(--accent); color: #fff; border-color: var(--acce
 .curve svg { display: block; width: 100%; height: 70px; }
 .curve .tip { display: block; text-align: right; font: 500 11px var(--f-data); color: var(--muted); }
 .chip.warn { color: var(--down); }
+.keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.keys div { background: var(--chip); border-radius: 4px; padding: 5px 6px; }
+.keys b { display: block; font: 600 16px var(--f-data); font-variant-numeric: tabular-nums; }
+.keys span { font-size: 11px; color: var(--muted); }
+.chip.edge { color: var(--accent); }
 body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--f-body); padding: 10px 16px 20px; }
 h1 { font: 700 19px/1.1 var(--f-display); margin: 0; }
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
@@ -78,6 +83,7 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
   <span class="chip" id="cTrend">Big trend: …</span>
   <span class="chip" id="cAtr">ATR …</span>
   <span class="chip" id="cBars">Waited 0h</span>
+  <span class="chip" id="cRange">Range …</span>
   <span class="chip" id="cSession">Today: 0 trades</span>
   <span class="chip" id="cSave">Journal: saved in this browser</span>
 </div>
@@ -115,6 +121,12 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
 
   <aside>
     <div class="card">
+      <h2>Your progress</h2>
+      <div class="curve" id="curveBox"><div class="small">Your edge over the coin flip, last 20 trades. Above the line = beating chance.</div><span class="tip" id="curveTip"></span><svg id="curve" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Learning curve"></svg></div>
+      <div class="keys" id="keyStats"></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="card">
       <h2>How to play</h2>
       <ol>
         <li><b>1D</b>: read the trend. Draw support and resistance on <b>1D</b> and <b>4H</b>, then trade on <b>4H</b>.</li>
@@ -122,14 +134,12 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
         <li><b>Next bar ▸</b> until price reaches your line.</li>
         <li><b>Buy</b> or <b>Sell</b>, drag the red STOP and green TARGET lines, then <b>▶ Start trade</b>.</li>
       </ol>
-      <p class="small">The trainer names the setup for you from where price sits in the last 50 candles: <b>bounce</b> (buying low / selling high), <b>breakout</b> (buying high / selling low) or <b>middle of range</b> (no level nearby, your weakest spot so far).</p>
+      <p class="small"><b>The range is drawn for you:</b> the shaded bands are the top and bottom 30% of the last 50 candles. Price inside a band = a trade zone. Price in the unshaded middle = press <b>Next bar</b> and wait. The chip at the top says which one you are in.</p>
       <p class="small">Zoom: drag the price numbers on the right, drag the chart to move it, mouse wheel for time. Fill = next candle's open, 0.05% fee per side.</p>
     </div>
     <div class="card">
-      <h2>Scorecard</h2>
+      <h2>Details</h2>
       <div class="stats" id="stats"></div>
-      <div class="curve" id="curveBox" hidden><div class="small">Your edge over the coin flip, last 20 trades. Above the line = beating chance.</div><span class="tip" id="curveTip"></span><svg id="curve" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Learning curve"></svg></div>
-      <div class="verdict" id="verdict"></div>
     </div>
     <div class="card">
       <h2>Journal</h2>
@@ -205,11 +215,12 @@ const entryPx = () => S.b.O[S.t + 1];
 // and the setup that implies for the chosen side. Same rule as the 2026-10-04 journal review.
 const SETUPS = ["Bounce at range edge", "Breakout at range edge", "Middle of range"];
 function setupOf(dir, pos) { return pos > 0.3 && pos < 0.7 ? SETUPS[2] : (dir > 0) === (pos <= 0.3) ? SETUPS[0] : SETUPS[1]; }
-function rangePos() {
+function rangeHL() {
   const b = S.b, w = 50 * tfm; let hi = -Infinity, lo = Infinity;
   for (let i = Math.max(0, S.t - w + 1); i <= S.t; i++) { if (b.H[i] > hi) hi = b.H[i]; if (b.L[i] < lo) lo = b.L[i]; }
-  return hi > lo ? (b.C[S.t] - lo) / (hi - lo) : 0.5;
+  return { hi, lo, from: Math.max(0, S.t - w + 1) };
 }
+function rangePos() { const { hi, lo } = rangeHL(); return hi > lo ? (S.b.C[S.t] - lo) / (hi - lo) : 0.5; }
 function setupRecord(name) {
   const g = journal.filter(r => (r.setup || "") === name);
   return g.length ? { n: g.length, edge: g.reduce((a, r) => a + r.you - r.flip, 0) / g.length } : null;
@@ -228,7 +239,7 @@ async function newChart() {
     finally { loadingChart = false; }
   }
   const b = decode(sym);
-  let t = 5200 + Math.floor(Math.random() * (b.C.length - 5200 - MAXHOLD - 400)); t = t - (t % 4) + 3;  // start on a full hour
+  let t = 5200 + Math.floor(Math.random() * (b.C.length - 5200 - MAXHOLD - 400)); t = t - (t % 96) + 95;  // start at a day close, so every timeframe's last candle is complete
   S = { sym, b, k: DATA[sym].base * Math.exp((Math.random() - 0.5) * 3), t, start: t, lines: [], trade: null, done: false, dir: 0, sl: null, tp: null };
   pending = null; yMan = null; tool = null; setTool(null); $("ticket").hidden = true;
   $("bLong").classList.remove("on"); $("bShort").classList.remove("on");
@@ -274,6 +285,16 @@ function draw() {
   if (S.trade) { const x = X(S.t + 1); ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 20); ctx.stroke(); ctx.setLineDash([]); }
 
   const bw = Math.max(1, sw * 0.7), up = css("--up"), dn = css("--down");
+  // range of the last 50 candles at the decision point: shaded top and bottom 30% = trade zones
+  { const rg = rangeHL(), x0 = Math.max(0, X(rg.from)), z = (rg.hi - rg.lo) * 0.3;
+    ctx.save(); ctx.globalAlpha = 0.10;
+    ctx.fillStyle = dn; ctx.fillRect(x0, Y(rg.hi), pw - x0, Y(rg.hi - z) - Y(rg.hi));
+    ctx.fillStyle = up; ctx.fillRect(x0, Y(rg.lo + z), pw - x0, Y(rg.lo) - Y(rg.lo + z));
+    ctx.restore(); ctx.strokeStyle = css("--muted"); ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+    for (const v of [rg.hi, rg.lo]) { ctx.beginPath(); ctx.moveTo(x0, Y(v)); ctx.lineTo(pw, Y(v)); ctx.stroke(); }
+    ctx.setLineDash([]); ctx.fillStyle = css("--muted"); ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.fillText("range high", x0 + 4, Y(rg.hi) + 9); ctx.fillText("range low", x0 + 4, Y(rg.lo) - 9);
+    ctx.font = "11px 'IBM Plex Mono', monospace"; }
   bars.forEach((k, n) => {
     const x = X((first + n + 0.5) * m), c = k.c >= k.o ? up : dn;
     ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 1;
@@ -396,7 +417,7 @@ function lock(on) { for (const id of ["b1", "b6", "b24", "bNew", "bLong", "bShor
 function wait(n) {
   if (!S || S.trade) return;
   if (S.done) { newChart(); return; }
-  S.t = Math.min(S.t + n * tfm, S.b.C.length - MAXHOLD - 2);
+  S.t = Math.min(Math.floor((S.t + 1) / tfm) * tfm + n * tfm - 1, S.b.C.length - MAXHOLD - 2);
   if (S.dir) chooseSide(S.dir);
   refresh(); hint();
 }
@@ -410,6 +431,8 @@ function refresh() {
   $("cTrend").textContent = `Big trend (50-day avg): ${bz > 0 ? "UP, buys only" : "DOWN, sells only"}`;
   $("cTrend").className = "chip " + (bz > 0 ? "up" : "down");
   $("cAtr").textContent = `1H ATR ${fmt(P(atr()))}`;
+  { const pos = rangePos(), zone = pos >= 0.7 ? "TOP band" : pos <= 0.3 ? "BOTTOM band" : "MIDDLE, wait";
+    $("cRange").textContent = `Range ${Math.round(pos * 100)}% · ${zone}`; $("cRange").className = "chip" + (pos > 0.3 && pos < 0.7 ? " warn" : " edge"); }
   $("cBars").textContent = `Waited ${((S.t - S.start) / 4).toFixed(S.t % 4 === 3 ? 0 : 2)}h`;
   draw();
 }
@@ -429,8 +452,10 @@ function agg(rows) {
 const sg = v => `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}R</span>`;
 function renderStats() {
   const a = agg(journal);
-  if (!a) { $("stats").innerHTML = "<span>Trades</span><span>0</span>"; $("verdict").textContent = "The scorecard compares you to a coin flip with the same stop and target, so luck can't fool you."; renderJournal(); return; }
-  const rows = [["Trades", a.n], ["Win rate", (a.win * 100).toFixed(0) + "%"], ["Average per trade", sg(a.you)], ["Coin flip, same stops", sg(a.flip)], ["Your edge over chance", sg(a.you - a.flip)], ["Total", sg(a.tot)]];
+  const key = (n, w, tot, e) => `<div><b>${n}</b><span>Trades</span></div><div><b>${w}</b><span>Win rate</span></div><div><b>${tot}</b><span>Total</span></div><div><b>${e}</b><span>Edge vs flip</span></div>`;
+  if (!a) { $("keyStats").innerHTML = key(0, "–", "–", "–"); $("stats").innerHTML = ""; $("verdict").textContent = "The scorecard compares you to a coin flip with the same stop and target, so luck can't fool you."; renderJournal(); renderCurve(); return; }
+  $("keyStats").innerHTML = key(a.n, (a.win * 100).toFixed(0) + "%", sg(a.tot), sg(a.you - a.flip));
+  const rows = [["Average per trade", sg(a.you)], ["Coin flip, same stops", sg(a.flip)]];
   for (const tf of ["15m", "1H", "4H", "1D"]) { const g = agg(journal.filter(r => (r.tf || "1H") === tf)); if (g) rows.push([`${tf} trades (${g.n})`, `${sg(g.you)} vs flip ${sg(g.flip)}`]); }
   const wt = agg(journal.filter(r => r.withTrend)), ag = agg(journal.filter(r => !r.withTrend));
   if (wt) rows.push([`With trend (${wt.n})`, sg(wt.you)]);
@@ -442,7 +467,7 @@ function renderStats() {
   const lo = edge - 2 * se, hi = edge + 2 * se;
   rows.push(["Luck range of your edge", a.n > 1 ? `${sg(lo)} to ${sg(hi)}` : "…"]);
   $("stats").innerHTML = rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("");
-  $("verdict").innerHTML = a.n < 50 ? `${50 - a.n} more trades before any verdict. Right now your true edge could be anywhere in the luck range above.`
+  $("verdict").innerHTML = a.n < 50 ? `${50 - a.n} more trades before any verdict. Right now your true edge could be anywhere in the luck range (see Details).`
     : lo > 0 ? `<b class="pos">Real skill: you beat a coin flip by ${edge.toFixed(2)}R per trade, and the whole luck range is above zero.</b>`
     : hi < 0 ? `<b class="neg">You are doing worse than a coin flip, and it's not bad luck.</b> Your side choice is costing you; look at which setup type loses most.`
     : `<b>Not proven yet.</b> Your edge is ${sg(edge)} per trade but the luck range still includes zero. Keep training; the range narrows with every trade.`;
@@ -450,8 +475,8 @@ function renderStats() {
 }
 // rolling 20-trade average of (you - coin flip), one point per trade from trade 20 on
 function renderCurve() {
-  const W = 20, ed = journal.map(r => r.you - r.flip), box = $("curveBox");
-  box.hidden = ed.length < W; if (box.hidden) return;
+  const W = 20, ed = journal.map(r => r.you - r.flip);
+  if (ed.length < W) { $("curve").innerHTML = ""; $("curveTip").textContent = `graph starts after ${W} trades (${ed.length} so far)`; return; }
   const pts = []; let s = ed.slice(0, W).reduce((x, y) => x + y, 0); pts.push(s / W);
   for (let i = W; i < ed.length; i++) { s += ed[i] - ed[i - W]; pts.push(s / W); }
   const lim = Math.max(0.5, ...pts.map(Math.abs)) * 1.1, X = i => pts.length < 2 ? 150 : 4 + i * 292 / (pts.length - 1), Y = v => 35 - v / lim * 31;
