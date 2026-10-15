@@ -22,6 +22,10 @@
   --up: #2fbf94; --down: #ef6a5f; --accent: #6f98ff; --level: #e2b23c; --trend: #a98bf0;
   --grid: #1c2530; --chip: #1f2934; color-scheme: dark }
 [hidden] { display: none !important; }
+  /* rows that scroll sideways fade out at the edge that has more, so nothing looks cut off */
+  .more-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent) }
+  .more-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent) }
+  .more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent) }
 .tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .tags .lbl { font: 600 12px var(--f-body); }
 button.tag.on { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -55,7 +59,12 @@ h1 { font: 700 19px/1.1 var(--f-display); margin: 0; }
 .tools { flex: 1 1 auto; }
 .actbar { flex: 0 1 auto; }
 .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
-canvas { display: block; width: 100%; height: max(360px, calc(100vh - 200px)); touch-action: none; cursor: crosshair; }
+canvas { display: block; width: 100%; height: max(360px, calc(100vh - 200px)); touch-action: none; cursor: crosshair;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.chartbox { position: relative; }
+/* "back to now": shown only while scrolled into history */
+button.now { position: absolute; z-index: 3; width: 40px; height: 40px; padding: 0; border-radius: 50%; font: 600 20px/1 var(--f-body);
+  background: var(--panel); box-shadow: 0 1px 4px rgb(0 0 0 / .25); }
 .msg { padding: 7px 12px; border-top: 1px solid var(--line); font-size: 14px; }
 .msg.win { background: color-mix(in srgb, var(--up) 18%, var(--panel)); } .msg.loss { background: color-mix(in srgb, var(--down) 16%, var(--panel)); }
 .msg b { font-weight: 600; }
@@ -76,8 +85,11 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 aside { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
 .card h2 { font: 700 14px var(--f-display); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 6px; color: var(--muted); }
-.riskIn { display: flex; gap: 6px; align-items: center; font: 600 12.5px var(--f-body); margin-bottom: 4px; }
-.riskIn input { font: 500 13px var(--f-data); width: 6em; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
+.acctSet { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font: 600 12.5px var(--f-body); margin-bottom: 4px; }
+.acctSet label { display: flex; gap: 5px; align-items: center; }
+.acctSet input, .acctSet select { font: 500 13px var(--f-data); width: 5.5em; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
+.acctSet select { width: auto; font-family: var(--f-body); }
+.keys small { display: block; font: 500 11px var(--f-data); }
 .stats { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 13px; }
 .stats span:nth-child(even) { font: 500 13px var(--f-data); text-align: right; font-variant-numeric: tabular-nums; }
 .stats small { display: block; font-size: 11.5px; color: var(--muted); }
@@ -107,7 +119,8 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
   .actbar.busy #bNew { display: none; }
   .msg { font-size: 13px; padding: 5px 8px; line-height: 1.35; min-height: calc(2.7em + 10px); }
   .ticket { padding: 6px 8px; gap: 6px; }
-  .ticket input, .ticket select, .acctForm input, .riskIn input { font-size: 16px; }
+  .ticket input, .ticket select, .acctForm input, .acctSet input, .acctSet select { font-size: 16px; }
+  .acctSet button { min-height: 40px; }
   .ticket input { width: 7.2em; }
   .ticket button, .ticket select { min-height: 40px; }
   .acctForm button { min-height: 40px; }
@@ -170,6 +183,7 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
       <button id="bNew">Next chart</button>
     </div>
     <canvas id="cv" aria-label="Price chart"></canvas>
+    <button class="now" id="bNow" hidden title="Back to the newest candle" aria-label="Back to the newest candle">»</button>
     <div class="ticket" id="ticket" hidden>
       <label for="iStop">Stop <input id="iStop" type="number" step="any" inputmode="decimal"></label>
       <label for="iTp">Target <input id="iTp" type="number" step="any" inputmode="decimal"></label>
@@ -182,7 +196,13 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
   <aside>
     <div class="card">
       <h2>Your progress</h2>
-      <label class="riskIn" for="iRisk">Risk per trade ($) <input id="iRisk" type="number" min="0" step="any" inputmode="decimal" value="10"></label>
+      <div class="acctSet">
+        <label for="iCap">Start <input id="iCap" type="number" min="1" step="any" inputmode="decimal" value="1000"> USDT</label>
+        <label for="iRiskV">Risk <input id="iRiskV" type="number" min="0" step="any" inputmode="decimal" value="1">
+          <select id="sMode" aria-label="Risk type"><option value="pct">% of balance</option><option value="fixed">USDT per trade</option></select></label>
+        <button id="bNewAcct" title="Fresh starting capital from your next trade; the journal and R statistics are kept">Start a new account</button>
+      </div>
+      <p class="small" id="acctNote" style="margin:2px 0 0"></p>
       <div class="keys" id="keyStats"></div>
       <div class="curve" id="curveBox"><div class="small">Your edge over the coin flip, last 20 trades. Above the line = beating chance.</div><span class="tip" id="curveTip"></span><svg id="curve" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Learning curve"></svg></div>
       <div class="verdict" id="verdict"></div>
@@ -193,7 +213,7 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
     </div>
     <div class="card">
       <h2>Journal</h2>
-      <div class="tbl"><table><thead><tr><th>Coin</th><th>Date</th><th>TF</th><th>Side</th><th>You</th><th>$</th><th>Flip</th></tr></thead><tbody id="jt"></tbody></table></div>
+      <div class="tbl"><table><thead><tr><th>Coin</th><th>Date</th><th>TF</th><th>Side</th><th>You</th><th>USDT</th><th>Flip</th></tr></thead><tbody id="jt"></tbody></table></div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
         <button id="bFileNew" hidden title="Create a journal file; every trade is then written to it automatically">New journal file…</button>
         <button id="bFileOpen" hidden title="Connect an existing journal file and load its trades">Open journal file…</button>
@@ -252,7 +272,8 @@ const netR = (dir, entry, risk, px) => dir * (px - entry) / risk - 2 * FEE * ent
 })();
 
 const P = u => u * S.k;
-const dp = p => p >= 1000 ? 1 : p >= 100 ? 2 : p >= 1 ? 3 : 5;
+// decimals: 4 significant digits below 1 (0.04292, 0.00001234), fewer for big prices
+const dp = p => p >= 1000 ? 1 : p >= 100 ? 2 : p >= 1 ? 3 : p > 0 ? Math.min(10, Math.ceil(-Math.log10(p)) + 3) : 5;
 const fmt = p => p.toFixed(dp(Math.abs(p)));
 const bias = () => { const b = S.b, n = 4800; return b.C[S.t] > (b.cum[S.t + 1] - b.cum[S.t + 1 - n]) / n ? 1 : -1; };
 function atr() {  // ATR(14) of completed 1H candles
@@ -287,7 +308,7 @@ async function newChart() {
   const b = decode(sym);
   let t = 5200 + Math.floor(Math.random() * (b.C.length - 5200 - MAXHOLD - 400)); t = t - (t % 96) + 95;  // start at a day close, so every timeframe's last candle is complete
   S = { sym, b, k: DATA[sym].base * Math.exp((Math.random() - 0.5) * 3), t, start: t, lines: [], trade: null, done: false, dir: 0, sl: null, tp: null };
-  pending = null; yMan = null; back = 0; tool = null; setTool(null); clearSide();
+  pending = null; yMan = null; back = 0; stopMomentum(); tool = null; setTool(null); clearSide();
   refresh(); hint();
 }
 
@@ -300,33 +321,39 @@ function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = css("--panel"); ctx.fillRect(0, 0, w, h);
   if (!S) return;
-  const b = S.b, m = tfm, V = Math.round(nBars), slots = V + MARGIN, axis = 70;
+  const b = S.b, m = tfm, V = Math.round(nBars), slots = V + MARGIN;
   const upto = S.trade ? S.trade.shown : S.t, lastJ = Math.floor(upto / m), nowJ = Math.floor(S.t / m);
   // back = candles scrolled into history (fractional while a finger pans); the right edge never passes the latest shown candle
   const B = back = Math.max(0, Math.min(back, lastJ - 5));
   const first = Math.max(0, nowJ - B - V + 1, lastJ - B - slots + 6), endJ = Math.floor(lastJ - B);
-  const pw = w - axis, ph = h - 26, sw = pw / slots;
   const bars = []; let hi = -Infinity, lo = Infinity;
   for (let j = Math.max(0, Math.floor(first)); j <= endJ; j++) { const k = candle(b, m, j, upto); k.j = j; bars.push(k); if (k.h > hi) hi = k.h; if (k.l < lo) lo = k.l; }
   for (const v of [S.sl, S.tp].filter(v => v != null)) { hi = Math.max(hi, v); lo = Math.min(lo, v); }
   const pad = (hi - lo) * 0.08; hi += pad; lo -= pad;
   if (yMan) { hi = yMan.mid + yMan.half; lo = yMan.mid - yMan.half; }
-  const X = t15 => (t15 / m - first) * sw, Y = u => 8 + (hi - u) / (hi - lo) * ph;
-  geo = { first, sw, hi, lo, ph, pw, m, Y };
-
+  // the price scale is as wide as its widest label (grid prices, the live price, STOP/TARGET tags), so nothing is cut
   ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textBaseline = "middle";
-  const step = niceStep((hi - lo) * S.k / 8);
-  for (let p = Math.ceil(lo * S.k / step) * step; p < hi * S.k; p += step) {
+  const step = niceStep((hi - lo) * S.k / 8), grid = [];
+  for (let p = Math.ceil(lo * S.k / step) * step; p < hi * S.k; p += step) grid.push(p);
+  const axis = Math.ceil(Math.max(50, ...[...grid.map(fmt), fmt(P(b.C[S.t])), "TARGET"].map(t => ctx.measureText(t).width)) + 12);
+  const pw = w - axis, ph = h - 26, sw = pw / slots;
+  const X = t15 => (t15 / m - first) * sw, Y = u => 8 + (hi - u) / (hi - lo) * ph;
+  geo = { first, sw, hi, lo, ph, pw, m, Y, axis, maxBack: Math.max(0, lastJ - 5) };
+  const nowB = $("bNow"); nowB.hidden = back < 0.5;
+  if (!nowB.hidden) { nowB.style.left = cv.offsetLeft + pw - 48 + "px"; nowB.style.top = cv.offsetTop + h - 26 - 48 + "px"; }
+
+  for (const p of grid) {
     const y = Y(p / S.k); ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke();
-    ctx.fillStyle = css("--muted"); ctx.fillText(fmt(p), pw + 6, y);
+    if (y > 6 && y < h - 20) { ctx.fillStyle = css("--muted"); ctx.fillText(fmt(p), pw + 6, y); }   // clear of the time row
   }
   // time labels (hidden coin, so show day count only: D1, D2 …)
   ctx.fillStyle = css("--muted");
   const lblEvery = Math.max(1, Math.ceil(70 / sw));
   for (let j = Math.floor(first); j <= first + slots; j++) if (j % lblEvery === 0) {
     const d = new Date(b.t0 + j * m * M15);
-    ctx.fillText(m >= 16 ? `${d.getUTCDate()}/${d.getUTCMonth() + 1}` : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`, X(j * m) + 2, h - 10);
+    const lbl = m >= 16 ? `${d.getUTCDate()}/${d.getUTCMonth() + 1}` : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+    if (X(j * m) + 2 + ctx.measureText(lbl).width <= pw) ctx.fillText(lbl, X(j * m) + 2, h - 10);   // never into the price scale
   }
   if (S.trade) { const x = X(S.t + 1); ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 20); ctx.stroke(); ctx.setLineDash([]); }
 
@@ -358,13 +385,14 @@ function at(ev) {
   const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
   return { x, y, t: (x / geo.sw + geo.first) * geo.m, p: geo.hi - (y - 8) / geo.ph * (geo.hi - geo.lo) };
 }
-function fitAll() { yMan = null; back = 0; draw(); }   // Fit button, double-click / double-tap on the price scale
+function fitAll() { yMan = null; back = 0; stopMomentum(); draw(); }   // Fit button, double-click / double-tap on the price scale
 const manual = () => (yMan = yMan || { mid: (geo.hi + geo.lo) / 2, half: (geo.hi - geo.lo) / 2 });
 const zoomPrice = f => { if (geo) { manual().half *= f; draw(); } };
 const zoomTime = f => { nBars = Math.min(400, Math.max(25, nBars * f)); draw(); };
-const startPan = ev => { drag = { kind: "pan", y0: ev.clientY, mid0: manual().mid }; cv.setPointerCapture(ev.pointerId); };
+const startPan = ev => { drag = { kind: "pan", x0: ev.clientX, y0: ev.clientY, mid0: manual().mid, back0: back }; cv.setPointerCapture(ev.pointerId); };
 cv.addEventListener("pointerdown", ev => {
   if (!S || !geo) return;
+  stopMomentum();
   if (ev.pointerType === "touch") { fingerDown(ev); return; }
   const q = at(ev), touch = ev.pointerType !== "mouse", grab = touch ? 24 : 14;
   if (S.dir && !S.trade && S.sl != null) {
@@ -391,7 +419,7 @@ cv.addEventListener("pointermove", ev => {
   if (ev.pointerType === "touch") { fingerMove(ev); return; }
   const q = at(ev);
   if (drag && drag.kind === "axis") { yMan.half = drag.half0 * Math.exp((ev.clientY - drag.y0) * 0.008); draw(); }
-  else if (drag) { yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half; draw(); }
+  else if (drag) { yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half; back = Math.max(0, drag.back0 + (ev.clientX - drag.x0) / geo.sw); draw(); }
   else if (dragging && S.dir && !S.trade) (dragging === "tp" ? setTarget : setStop)(q.p);
   if (ev.pointerType !== "mouse") return;
   const near = S.dir && !S.trade && S.sl != null && (Math.abs(q.y - geo.Y(S.tp)) < 14 || Math.abs(q.y - geo.Y(S.sl)) < 14);
@@ -444,6 +472,8 @@ function fingerMove(ev) {
   if (!drag) return;
   if (drag.kind === "axis") { yMan.half = drag.half0 * Math.exp((ev.clientY - drag.y0) * 0.008); draw(); return; }
   back = Math.max(0, drag.back0 + (ev.clientX - drag.x0) / geo.sw);   // draw() caps it at the latest candle
+  const now = performance.now(); (drag.trail = drag.trail || []).push({ t: now, x: ev.clientX });
+  while (drag.trail.length > 2 && now - drag.trail[0].t > 100) drag.trail.shift();
   if (drag.mid0 == null && Math.abs(ev.clientY - drag.y0) > 8) { drag.y0 = ev.clientY; drag.mid0 = manual().mid; }
   if (drag.mid0 != null) yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half;
   draw();
@@ -456,7 +486,11 @@ function fingerUp(ev) {
     return;
   }
   if (fingers.size) return;
-  const t = tap; dragging = false; drag = null; tap = null; line0 = null;
+  const t = tap, d = drag; dragging = false; drag = null; tap = null; line0 = null;
+  if (ev.type === "pointerup" && d && d.kind === "tpan" && d.trail && d.trail.length > 1) {   // flick: keep scrolling
+    const a = d.trail[0], z = d.trail[d.trail.length - 1], now = performance.now();
+    if (now - z.t < 60 && z.t > a.t) { const v = (z.x - a.x) / (z.t - a.t); if (Math.abs(v) > 0.3) glide(v); }
+  }
   if (ev.type !== "pointerup" || !t || t.moved || t.line || performance.now() - t.t > 500) return;
   if (t.axis) { const now = performance.now(); if (now - lastAxisTap < 350) { lastAxisTap = 0; fitAll(); } else lastAxisTap = now; return; }
   if (S.trade || S.dir) return;
@@ -467,16 +501,31 @@ function fingerUp(ev) {
     else if (Math.abs(q.t - tool2.t) > 0.5) { S.lines.push({ t: "t", t1: tool2.t, p1: tool2.p, t2: q.t, p2: q.p }); tool2 = null; draw(); hint(); }
   }
 }
-// the page never scrolls or zooms from touches on the chart (iOS ignores parts of touch-action, so block it here too)
+// momentum after a flick (v in px/ms), slowing smoothly; stops at the newest candle or the start of the data
+let mom = null;
+function stopMomentum() { if (mom) { cancelAnimationFrame(mom.raf); mom = null; } }
+function animate(step) { stopMomentum(); let last = performance.now(); mom = {};
+  const tick = now => { const dt = Math.min(40, now - last); last = now; if (step(dt) === false) { mom = null; return; } mom.raf = requestAnimationFrame(tick); };
+  mom.raf = requestAnimationFrame(tick); }
+function glide(v) {
+  animate(dt => { back = Math.max(0, Math.min(geo.maxBack, back + v * dt / geo.sw)); draw(); v *= Math.pow(0.996, dt);
+    return Math.abs(v) > 0.02 && back > 0 && back < geo.maxBack; });
+}
+// » : glide back to the newest candle, zoom kept
+$("bNow").onclick = () => { const b0 = back; let el = 0; animate(dt => { el += dt; const k = Math.min(1, el / 350); back = b0 * Math.pow(1 - k, 3); draw(); return k < 1; }); };
+// the page never scrolls or zooms from touches on the chart, a held finger is never turned into a long-press menu
+// or selection (iOS ignores parts of touch-action, so block it here too)
 for (const type of ["touchstart", "touchmove"]) cv.addEventListener(type, ev => ev.preventDefault(), { passive: false });
+cv.addEventListener("contextmenu", ev => ev.preventDefault());
+cv.addEventListener("touchcancel", () => { fingers.clear(); pinch = null; tap = null; drag = null; dragging = false; line0 = null; });
 cv.addEventListener("gesturestart", ev => ev.preventDefault());
 cv.addEventListener("dblclick", ev => { if (geo && ev.pointerType !== "touch" && at(ev).x > geo.pw) fitAll(); });
-cv.addEventListener("wheel", ev => { if (!geo) return; ev.preventDefault(); const f = Math.exp(ev.deltaY * 0.0012); at(ev).x > geo.pw ? zoomPrice(f) : zoomTime(f); }, { passive: false });
+cv.addEventListener("wheel", ev => { if (!geo) return; ev.preventDefault(); stopMomentum(); const f = Math.exp(ev.deltaY * 0.0012); at(ev).x > geo.pw ? zoomPrice(f) : zoomTime(f); }, { passive: false });
 function setTool(t) { tool = tool === t ? null : t; tool2 = null; $("bLevel").classList.toggle("on", tool === "h"); $("bTrend").classList.toggle("on", tool === "t"); }
 
 function chooseSide(d) {
   if (S.trade || S.done) return;
-  S.dir = S.dir === d ? 0 : d; back = 0; S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
+  S.dir = S.dir === d ? 0 : d; back = 0; stopMomentum(); S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
   $("bLong").classList.toggle("on", S.dir === 1); $("bShort").classList.toggle("on", S.dir === -1);
   $("ticket").hidden = !S.dir; buttons(); fit();
   if (S.dir) { const e = entryPx(), a = atr(); S.tp = e + S.dir * 3 * a; setStop(e - S.dir * 1.5 * a); }
@@ -517,7 +566,7 @@ function placeTrade() {
   const flipRes = simulate(b, from, -S.dir, entry + S.dir * risk, entry - (tp - entry), hold);
   const you = netR(S.dir, entry, risk, res.px), other = netR(-S.dir, entry, risk, flipRes.px);
   S.trade = { entry, sl, tp, res, you, flip: (you + other) / 2, tag: "Auto", pos: +rangePos().toFixed(3), setup: setupOf(S.dir, rangePos()), withTrend: S.dir === bias(), shown: S.t, tf: TFN[tfm], days: hold / 96 };
-  pending = null; back = 0; $("ticket").hidden = true; lock(true);
+  pending = null; back = 0; stopMomentum(); $("ticket").hidden = true; lock(true);
   say(`Trade running… entry ${fmt(P(entry))}, stop ${fmt(P(sl))}, target ${fmt(P(tp))}.`);
   timer = setInterval(() => { S.trade.shown = Math.min(S.trade.shown + Math.max(1, tfm / 2), res.i); draw(); if (S.trade.shown >= res.i) finish(); }, 110);
   buttons(); fit();
@@ -533,7 +582,8 @@ function finish() {
   journal.push(row); save(); cloudSave(row); sbPush(row); fileSave(); S.done = true; lock(false); buttons(); draw(); renderStats();
   $("bNew").classList.add("primary"); $("msg").parentNode.className = "msg " + (t.you >= 0 ? "win" : "loss");
   const word = t.res.how === "target" ? "Target hit" : t.res.how === "stop" ? "Stopped out" : `Closed after ${t.days} days (time limit)`;
-  say(`<b>${t.you >= 0 ? "WIN" : "LOSS"}: ${t.you >= 0 ? "+" : ""}${t.you.toFixed(2)}R = ${usd(t.you * riskUsd)}</b> after fees. ${word}. It was <b>${coin}</b>, ${d.toUTCString().slice(5, 16)}. ${t.withTrend ? "" : "Against the big trend. "}<b>Next bar</b> keeps going on this chart, <b>Next chart</b> starts a new one.`);
+  const mm = acct && acctStats().per.get(row.id);
+  say(`<b>${t.you >= 0 ? "WIN" : "LOSS"}: ${t.you >= 0 ? "+" : ""}${t.you.toFixed(2)}R${mm ? ` = ${usd(mm.m)}, balance ${money(mm.bal)} USDT` : ""}</b> after fees. ${word}. It was <b>${coin}</b>, ${d.toUTCString().slice(5, 16)}. ${t.withTrend ? "" : "Against the big trend. "}<b>Next bar</b> keeps going on this chart, <b>Next chart</b> starts a new one.`);
   fit();
 }
 function lock(on) { for (const id of ["b1", "b6", "b24", "bNew", "bLong", "bShort", "bUndo", "bClear"]) $(id).disabled = on; if (!on) session(); }
@@ -547,12 +597,12 @@ function wait(n) {
     if (exit + n * tfm > S.b.C.length - MAXHOLD - 2) { newChart(); return; }
     S.t = exit; S.trade = null; S.done = false; S.dir = 0; S.sl = S.tp = null; pending = null; clearSide();
   }
-  S.t = Math.min(Math.floor((S.t + 1) / tfm) * tfm + n * tfm - 1, S.b.C.length - MAXHOLD - 2); back = 0;
+  S.t = Math.min(Math.floor((S.t + 1) / tfm) * tfm + n * tfm - 1, S.b.C.length - MAXHOLD - 2); back = 0; stopMomentum();
   if (S.dir) chooseSide(S.dir);
   refresh(); hint();
 }
 function setTF(m) {
-  tfm = m; yMan = null; back = 0;
+  tfm = m; yMan = null; back = 0; stopMomentum();
   document.querySelectorAll("button.tf").forEach(x => x.classList.toggle("on", +x.dataset.m === m));
   if (S) refresh();
 }
@@ -572,11 +622,66 @@ function hint() {
 }
 
 // ---------- scorecard ----------
-// money is only a view: $ = R x the risk per trade typed here (kept in this browser, not in the trades)
-const RISK_KEY = "levelDeskRisk";
-let riskUsd = 10;
-try { const v = parseFloat(localStorage.getItem(RISK_KEY)); if (v >= 0) riskUsd = v; } catch (e) {}
-const usd = v => `${v < 0 ? "-" : "+"}$${Math.abs(v).toFixed(2)}`;
+// ---------- demo account in USDT ----------
+// Money is a view on the R results: each trade's USDT = its R x the risk at that moment (a % of the balance then, or a
+// fixed amount). The account counts trades made after it started, so a new account starts with the next trade
+// while the journal and every R statistic stay whole. Saved in the signed-in user's metadata (same on PC and phone),
+// with this browser's copy as the offline / signed-out store. updatedAt 0 = an automatic default that any saved one beats.
+const ACCT_KEY = "levelDeskAccount";
+let acct = null;
+try { acct = JSON.parse(localStorage.getItem(ACCT_KEY) || "null"); } catch (e) { acct = null; }
+const lastId = () => journal.length ? String(journal[journal.length - 1].id) : "";
+const acctDefault = () => ({ cap: 1000, mode: "pct", pct: 1, fixed: 10, startAfterId: lastId(), startedAt: Date.now(), updatedAt: 0 });
+// in the account: made after it started (time) and after its starting trade (id). The time rule keeps older history
+// out even when another device's history arrives later through sync.
+const acctRows = (a = acct) => a ? journal.filter(r => String(r.id) > a.startAfterId && (r.played || 0) > (a.startedAt || 0)) : [];
+function acctStats(rows = acctRows(), a = acct) {
+  let bal = a.cap, peak = a.cap, dd = 0, ddPct = 0; const per = new Map();
+  for (const r of rows) {
+    const risk = a.mode === "fixed" ? a.fixed : bal * a.pct / 100, m = r.you * risk;
+    bal += m; per.set(r.id, { m, bal }); if (bal > peak) peak = bal;
+    if (peak - bal > dd) { dd = peak - bal; ddPct = dd / peak * 100; }
+  }
+  return { n: rows.length, bal, pl: bal - a.cap, plPct: (bal / a.cap - 1) * 100, dd, ddPct, per,
+    avg: rows.length ? (bal - a.cap) / rows.length : 0, risk: a.mode === "fixed" ? a.fixed : bal * a.pct / 100 };
+}
+const money = v => Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd = v => `${v < 0 ? "-" : "+"}${money(v)} USDT`;
+let acctPushT = null;
+function acctSave(push = true) {
+  try { localStorage.setItem(ACCT_KEY, JSON.stringify(acct)); } catch (e) {}
+  if (push) { clearTimeout(acctPushT); acctPushT = setTimeout(acctPush, 600); }
+  acctUiSet(); renderStats();
+}
+async function acctPush() {
+  if (!sb || !sbUser || !acct) return;
+  try { const { error } = await sb.auth.updateUser({ data: { tcAccount: acct } }); if (error) throw error; }
+  catch (e) { console.warn("account settings not saved to the server yet", e); }   // retried on the next sync
+}
+// called after each sync: the newer of server / browser wins; the very first time an automatic default is created
+async function acctFromServer() {
+  let meta = null;
+  try { const { data } = await sb.auth.getUser(); meta = data && data.user && data.user.user_metadata && data.user.user_metadata.tcAccount; } catch (e) {}
+  if (meta && (!acct || (meta.updatedAt || 0) >= (acct.updatedAt || 0))) { acct = meta; acctSave(false); return; }
+  if (!acct) acct = acctDefault();
+  acctSave(false); await acctPush();
+}
+function acctLocal() { if (!acct) { acct = acctDefault(); acctSave(false); } }   // signed out: this browser only
+function acctUiSet() {
+  if (!acct) { $("acctNote").textContent = "Your USDT account appears once the journal has synced."; return; }
+  if (document.activeElement !== $("iCap")) $("iCap").value = acct.cap;
+  if (document.activeElement !== $("iRiskV")) $("iRiskV").value = acct.mode === "fixed" ? acct.fixed : acct.pct;
+  $("sMode").value = acct.mode;
+  const n = acctRows().length, d = new Date(acct.startedAt || Date.now());
+  $("acctNote").textContent = `Account started ${d.toLocaleDateString()} · ${n} trade${n === 1 ? "" : "s"} in it. Earlier trades count in R only.`;
+}
+function acctEdit() {
+  if (!acct) return;
+  const cap = parseFloat($("iCap").value), v = parseFloat($("iRiskV").value), mode = $("sMode").value;
+  if (!(cap > 0) || !(v >= 0)) return;
+  acct = { ...acct, cap, mode, ...(mode === "fixed" ? { fixed: v } : { pct: v }), updatedAt: Date.now() };
+  acctSave();
+}
 function agg(rows) {
   const n = rows.length; if (!n) return null;
   const s = k => rows.reduce((a, r) => a + r[k], 0);
@@ -592,16 +697,22 @@ function edgeOf(rows) {
 const TEST_FROM = 444, TEST_N = 100;   // confirmation test: trades 444-543, judged only once all 100 are done
 const sg = v => `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}R</span>`;
 const sgu = v => `<span class="${v >= 0 ? "pos" : "neg"}">${usd(v)}</span>`;
+const pct = v => `<small class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}%</small>`;
 function renderStats() {
   const a = agg(journal);
-  const key = (n, w, totR, totU, avgU, e) => `<div><b>${n}</b><span>Trades</span></div><div><b>${w}</b><span>Win rate</span></div><div><b>${e}</b><span>Edge vs flip</span></div>`
-    + `<div><b>${totR}</b><span>Total R</span></div><div><b>${totU}</b><span>Total $</span></div><div><b>${avgU}</b><span>Average per trade</span></div>`;
-  if (!a) { $("keyStats").innerHTML = key(0, "–", "–", "–", "–", "–"); $("stats").innerHTML = ""; $("verdict").textContent = "The scorecard compares you to a coin flip with the same stop and target, so luck can't fool you."; renderJournal(); renderCurve(); session(); return; }
+  const m = acct ? acctStats() : null;
+  const moneyKeys = m ? `<div><b>${money(m.bal)}</b><span>Balance (USDT)</span></div><div><b>${sgu(m.pl)}</b>${pct(m.plPct)}<span>Profit / loss</span></div>`
+      + `<div><b class="${m.dd > 0 ? "neg" : ""}">${m.dd > 0 ? "-" : ""}${money(m.dd)}</b><small class="${m.dd > 0 ? "neg" : ""}">${m.dd > 0 ? "-" : ""}${m.ddPct.toFixed(2)}%</small><span>Biggest drop</span></div>`
+    : `<div><b>–</b><span>Balance (USDT)</span></div><div><b>–</b><span>Profit / loss</span></div><div><b>–</b><span>Biggest drop</span></div>`;
+  const key = (n, w, totR, e) => moneyKeys + `<div><b>${n}</b><span>Trades</span></div><div><b>${w}</b><span>Win rate</span></div><div><b>${e}</b><span>Edge vs flip</span></div>`;
+  if (!a) { $("keyStats").innerHTML = key(0, "–", "–", "–"); $("stats").innerHTML = ""; $("verdict").textContent = "The scorecard compares you to a coin flip with the same stop and target, so luck can't fool you."; renderJournal(); renderCurve(); session(); return; }
   const e = edgeOf(journal), last = edgeOf(journal.slice(-100));
-  $("keyStats").innerHTML = key(a.n, (a.win * 100).toFixed(0) + "%", sg(a.tot), sgu(a.tot * riskUsd), sgu(a.you * riskUsd), sg(e.edge));
+  $("keyStats").innerHTML = key(a.n, (a.win * 100).toFixed(0) + "%", sg(a.tot), sg(e.edge));
   const test = journal.slice(TEST_FROM - 1, TEST_FROM - 1 + TEST_N), te = test.length === TEST_N ? edgeOf(test) : null;
   const rows = [
-    ["Average per trade", `${sg(a.you)} = ${sgu(a.you * riskUsd)}`],
+    ["Average per trade", sg(a.you)],
+    ["Total", sg(a.tot)],
+    ...(m && m.n ? [[`Average per trade in this account (${m.n})`, sgu(m.avg)], ["Risk on the next trade", `${money(m.risk)} USDT`]] : []),
     ["Coin flip with the same stops", sg(a.flip)],
     ["Your edge over the coin flip", `${sg(e.edge)}<small>luck range ${a.n > 1 ? `${sg(e.lo)} to ${sg(e.hi)}` : "…"}</small>`],
     [`Last ${last.n} trades edge`, sg(last.edge)],
@@ -639,7 +750,8 @@ function session() {
   $("cSession").className = "chip" + (k >= 3 ? " warn" : "");
 }
 function renderJournal() {
-  $("jt").innerHTML = journal.slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${String(r.date).slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${sg(r.you)}</td><td>${sgu(r.you * riskUsd)}</td><td>${sg(r.flip)}</td></tr>`).join("")
+  const per = acct ? acctStats().per : new Map();
+  $("jt").innerHTML = journal.slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${String(r.date).slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${sg(r.you)}</td><td>${per.has(r.id) ? sgu(per.get(r.id).m).replace(" USDT", "") : "–"}</td><td>${sg(r.flip)}</td></tr>`).join("")
     || `<tr><td colspan="7" class="small">Your trades will appear here.</td></tr>`;
 }
 let resetArmed = false;
@@ -810,6 +922,7 @@ function sbSync() {
       for (const id of have) sbPending.delete(id);
       for (const r of missing) sbPending.delete(r.id);
       keepPending(); syncChip("ok");
+      await acctFromServer();
     } catch (e) { console.warn("journal sync failed", e); syncChip("offline"); }
     finally { sbBusy = null; if (sbAgain) { sbAgain = false; sbSync(); } }
   })();
@@ -843,14 +956,14 @@ function acctUi() {
 }
 function acctMsg(t, bad) { $("acctMsg").innerHTML = t; $("acctMsg").className = bad ? "small neg" : "small"; }
 function sbInit(shared) {
-  if (shared === null) { syncChip(); return; }   // inside the site, but the site could not start sign-in
+  if (shared === null) { syncChip(); acctLocal(); return; }   // inside the site, but the site could not start sign-in
   if (shared) sb = shared;                      // inside the site: use its signed-in session (one login for everything)
-  else if (!window.supabase || !window.supabase.createClient) { syncChip(); acctMsg("Sync is unavailable right now (could not load the sign-in library). Trades are kept on this device.", true); return; }
+  else if (!window.supabase || !window.supabase.createClient) { syncChip(); acctLocal(); acctMsg("Sync is unavailable right now (could not load the sign-in library). Trades are kept on this device.", true); return; }
   else sb = window.supabase.createClient(SB_URL, SB_KEY);
   sb.auth.onAuthStateChange((ev, session) => {
     const u = session && session.user, changed = (u && u.id) !== (sbUser && sbUser.id);
     sbUser = u || null; acctUi();
-    if (!sbUser) { syncChip(); return; }
+    if (!sbUser) { syncChip(); acctLocal(); return; }
     if (changed) setTimeout(sbSync, 0);   // never call the client inside its own auth callback
   });
   const h = location.hash + location.search;
@@ -902,8 +1015,23 @@ addEventListener("resize", fit); small.addEventListener("change", fit);
 const fitObs = new ResizeObserver(() => fit());
 for (const el of [document.querySelector(".top"), document.querySelector(".tools"), $("ticket"), $("msg").parentNode, $("acctForm")]) fitObs.observe(el);
 if (cv.clientWidth && cv.clientWidth < 600) nBars = 70;   // fewer, wider candles on a phone
-$("iRisk").value = riskUsd;
-$("iRisk").oninput = () => { const v = parseFloat($("iRisk").value); if (v >= 0) { riskUsd = v; try { localStorage.setItem(RISK_KEY, String(v)); } catch (e) {} renderStats(); } };
+$("iCap").oninput = $("iRiskV").oninput = acctEdit;
+$("sMode").onchange = () => { $("iRiskV").value = $("sMode").value === "fixed" ? acct.fixed : acct.pct; acctEdit(); };
+let newAcctArmed = false;
+$("bNewAcct").onclick = () => {
+  if (!acct) return;
+  const cap = parseFloat($("iCap").value) > 0 ? parseFloat($("iCap").value) : acct.cap;
+  if (!newAcctArmed) { newAcctArmed = true; $("bNewAcct").textContent = `Tap again: new ${money(cap)} USDT account`; setTimeout(() => { newAcctArmed = false; $("bNewAcct").textContent = "Start a new account"; }, 3000); return; }
+  newAcctArmed = false; $("bNewAcct").textContent = "Start a new account";
+  acct = { ...acct, cap, startAfterId: lastId(), startedAt: Date.now(), updatedAt: Date.now() }; acctSave();
+};
+acctUiSet();
+// sideways-scrolling rows: mark which edge has more, for the fade
+function edgeFade(el) {
+  const upd = () => { const max = el.scrollWidth - el.clientWidth; el.classList.toggle("more-l", el.scrollLeft > 2); el.classList.toggle("more-r", max - el.scrollLeft > 2); };
+  el.addEventListener("scroll", upd, { passive: true }); new ResizeObserver(upd).observe(el); for (const c of el.children) new ResizeObserver(upd).observe(c); upd();
+}
+edgeFade(document.querySelector(".top")); edgeFade(document.querySelector(".tools"));
 new ResizeObserver(() => draw()).observe(cv);
 const LIB = "trainer-lib/";
 setTF(16); renderStats(); fit();

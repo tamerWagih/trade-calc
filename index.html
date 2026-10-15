@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Trade Calculator</title>
 <script>
 /* before the first paint: skip the login page when this browser already has a session or chose "continue without signing in" */
@@ -17,7 +17,7 @@ try {
   }
   * { box-sizing:border-box }
   [hidden] { display:none !important }   /* class rules below outrank the browser's own */
-  body { margin:0; min-height:100vh; padding:28px 16px; background:var(--bg);
+  body { margin:0; min-height:100vh; padding:28px max(16px, env(safe-area-inset-right)) 28px max(16px, env(safe-area-inset-left)); background:var(--bg);
          color:var(--fg); font:14px "Segoe UI",system-ui,sans-serif;
          display:flex; flex-direction:column; align-items:center }
   main { width:100%; max-width:780px }
@@ -25,10 +25,14 @@ try {
   /* tabs */
   nav { display:flex; gap:4px; margin-bottom:10px; overflow-x:auto; scrollbar-width:none }   /* one row; scrolls on its own if it must */
   nav::-webkit-scrollbar { display:none }
+  /* rows that scroll sideways fade out at the edge that has more, so nothing looks cut off */
+  .more-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent) }
+  .more-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent) }
+  .more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent) }
 
   /* login page (covers the site until signed in or "continue without signing in") */
   html.pass #gate { display:none }
-  #gate { position:fixed; inset:0; z-index:50; background:var(--bg); display:flex; padding:16px; overflow:auto }   /* margin:auto centres yet still scrolls on short screens */
+  #gate { position:fixed; inset:0; z-index:50; background:var(--bg); display:flex; padding:max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); overflow:auto }   /* margin:auto centres yet still scrolls on short screens */
   #gate form, #gate #gWait { margin:auto }
   #gate form { width:100%; max-width:360px; background:var(--card); border-radius:10px; padding:22px; display:flex; flex-direction:column; gap:10px }
   #gate h1 { margin:0; font-size:20px }
@@ -50,7 +54,7 @@ try {
   section[hidden] { display:none }
 
   /* trainer tab: the page does not scroll, the trainer fills the screen and scrolls inside its frame */
-  body.train { padding:8px 8px 0; height:100vh; height:100dvh; min-height:0; overflow:hidden }
+  body.train { padding:8px max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left)); height:100vh; height:100dvh; min-height:0; overflow:hidden }
   body.train main { height:100%; display:flex; flex-direction:column }
   body.train nav { flex:none; margin-bottom:6px }
   body.train #secTrain { flex:1; min-height:0 }
@@ -58,7 +62,7 @@ try {
 
   /* phones */
   @media (max-width:600px) {
-    body { padding:10px 8px 20px }
+    body { padding:10px max(8px, env(safe-area-inset-right)) 20px max(8px, env(safe-area-inset-left)) }
     nav { gap:0 }
     nav button { padding:0 9px; min-height:44px; font-size:13px }
     .card { padding:14px 12px; min-width:0 }
@@ -70,7 +74,7 @@ try {
   }
   @media (max-width:380px) { nav button { padding:0 6px; font-size:12.5px } }
   @media (max-width:600px), (max-height:500px) {
-    body.train { padding:2px 0 0 }
+    body.train { padding:max(2px, env(safe-area-inset-top)) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) }
     body.train nav { margin-bottom:2px }
     #trainFrame { border-radius:0 }
   }
@@ -829,6 +833,14 @@ $("bOut").onclick = async () => {   // signed in: sign out; guest: back to the l
   tryStore(sessionStorage, s => s.removeItem(GUEST)); account(null); gMsg(""); $("gPass").value = ""; gateOn(true);
 };
 (() => { const el = document.createElement("script"); el.src = SB_LIB; el.async = true; el.onload = authStart; el.onerror = authStart; document.head.appendChild(el); })();
+
+/* ---------- the tab row scrolls on small phones: fade the side that has more ---------- */
+// sideways-scrolling rows: mark which edge has more, for the fade
+function edgeFade(el) {
+  const upd = () => { const max = el.scrollWidth - el.clientWidth; el.classList.toggle("more-l", el.scrollLeft > 2); el.classList.toggle("more-r", max - el.scrollLeft > 2); };
+  el.addEventListener("scroll", upd, { passive: true }); new ResizeObserver(upd).observe(el); for (const c of el.children) new ResizeObserver(upd).observe(c); upd();
+}
+edgeFade(document.querySelector("nav"));
 
 const val = el => el.type === "checkbox" ? el.checked : el.value;
 
