@@ -766,9 +766,11 @@ function acctUi() {
   fit();
 }
 function acctMsg(t, bad) { $("acctMsg").innerHTML = t; $("acctMsg").className = bad ? "small neg" : "small"; }
-function sbInit() {
-  if (!window.supabase || !window.supabase.createClient) { syncChip(); acctMsg("Sync is unavailable right now (could not load the sign-in library). Trades are kept on this device.", true); return; }
-  sb = window.supabase.createClient(SB_URL, SB_KEY);
+function sbInit(shared) {
+  if (shared === null) { syncChip(); return; }   // inside the site, but the site could not start sign-in
+  if (shared) sb = shared;                      // inside the site: use its signed-in session (one login for everything)
+  else if (!window.supabase || !window.supabase.createClient) { syncChip(); acctMsg("Sync is unavailable right now (could not load the sign-in library). Trades are kept on this device.", true); return; }
+  else sb = window.supabase.createClient(SB_URL, SB_KEY);
   sb.auth.onAuthStateChange((ev, session) => {
     const u = session && session.user, changed = (u && u.id) !== (sbUser && sbUser.id);
     sbUser = u || null; acctUi();
@@ -808,7 +810,10 @@ $("bSignUp").onclick = async () => {
 $("bSignOut").onclick = async () => { if (sb) await sb.auth.signOut({ scope: "local" }); sbUser = null; acctUi(); syncChip(); };
 window.addEventListener("online", () => { if (sbUser) sbSync(); });
 syncChip();
-(() => { const el = document.createElement("script"); el.src = SB_LIB; el.async = true; el.onload = sbInit; el.onerror = sbInit; document.head.appendChild(el); })();
+// Inside the site the login page owns the account: reuse its client. Opened on its own, keep the built-in sign-in.
+const siteAuth = (() => { try { return window.parent !== window ? window.parent.tcAuth : null; } catch (e) { return null; } })();
+if (siteAuth) { $("acct").hidden = true; siteAuth.then(c => sbInit(c)); }
+else (() => { const el = document.createElement("script"); el.src = SB_LIB; el.async = true; el.onload = () => sbInit(); el.onerror = () => sbInit(); document.head.appendChild(el); })();
 
 // ---------- phone layout: the chart fills the screen above the action bar ----------
 const small = matchMedia("(max-width: 860px), (max-height: 500px)");
