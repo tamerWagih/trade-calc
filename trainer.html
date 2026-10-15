@@ -201,6 +201,7 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
         <label for="iRiskV">Risk <input id="iRiskV" type="number" min="0" step="any" inputmode="decimal" value="1">
           <select id="sMode" aria-label="Risk type"><option value="pct">% of balance</option><option value="fixed">USDT per trade</option></select></label>
         <button id="bNewAcct" title="Fresh starting capital from your next trade; the journal and R statistics are kept">Start a new account</button>
+        <button id="bAllTrades" hidden title="Count every trade in the journal from the starting capital">Count all my trades</button>
       </div>
       <p class="small" id="acctNote" style="margin:2px 0 0"></p>
       <div class="keys" id="keyStats"></div>
@@ -324,7 +325,8 @@ function draw() {
   const b = S.b, m = tfm, slots = Math.round(nBars);   // the plot is `slots` candles wide
   const upto = S.trade ? S.trade.shown : S.t, lastJ = Math.floor(upto / m), nowJ = Math.floor(S.t / m);
   // back = candles scrolled into history (fractional while a finger pans); the right edge never passes the latest shown candle
-  const B = back = Math.max(0, Math.min(back, lastJ - 5));
+  const minBack = OFFSET - Math.floor(slots * 0.8);   // negative back = empty room right of the newest candle (up to 80% of the width)
+  const B = back = Math.max(minBack, Math.min(back, lastJ - 5));
   // right edge in candle units: at "now" the newest candle plus a small offset; scrolled back, candles fill the width.
   // While a trade plays the view holds still until the playing candle reaches the edge, then scrolls with it.
   const anchor = S.trade && !S.done ? Math.max(nowJ + 1 + OFFSET, lastJ + 1) : lastJ + 1 + OFFSET;
@@ -341,8 +343,8 @@ function draw() {
   const axis = Math.ceil(Math.max(50, ...[...grid.map(fmt), fmt(P(b.C[S.t])), "TARGET"].map(t => ctx.measureText(t).width)) + 12);
   const pw = w - axis, ph = h - 26, sw = pw / slots;
   const X = t15 => (t15 / m - first) * sw, Y = u => 8 + (hi - u) / (hi - lo) * ph;
-  geo = { first, sw, hi, lo, ph, pw, m, Y, axis, maxBack: Math.max(0, lastJ - 5) };
-  const nowB = $("bNow"); nowB.hidden = back < 0.5;
+  geo = { first, sw, hi, lo, ph, pw, m, Y, axis, maxBack: Math.max(0, lastJ - 5), minBack };
+  const nowB = $("bNow"); nowB.hidden = Math.abs(back) < 0.5;
   if (!nowB.hidden) { nowB.style.left = cv.offsetLeft + pw - 48 + "px"; nowB.style.top = cv.offsetTop + h - 26 - 48 + "px"; }
 
   for (const p of grid) {
@@ -424,7 +426,7 @@ cv.addEventListener("pointermove", ev => {
   if (ev.pointerType === "touch") { fingerMove(ev); return; }
   const q = at(ev);
   if (drag && drag.kind === "axis") { yMan.half = drag.half0 * Math.exp((ev.clientY - drag.y0) * 0.008); draw(); }
-  else if (drag) { yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half; back = Math.max(0, drag.back0 + (ev.clientX - drag.x0) / geo.sw); draw(); }
+  else if (drag) { yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half; back = drag.back0 + (ev.clientX - drag.x0) / geo.sw; draw(); }
   else if (dragging && S.dir && !S.trade) (dragging === "tp" ? setTarget : setStop)(q.p);
   if (ev.pointerType !== "mouse") return;
   const near = S.dir && !S.trade && S.sl != null && (Math.abs(q.y - geo.Y(S.tp)) < 14 || Math.abs(q.y - geo.Y(S.sl)) < 14);
@@ -476,7 +478,7 @@ function fingerMove(ev) {
   if (dragging && S.dir && !S.trade) { (dragging === "tp" ? setTarget : setStop)(at(ev).p + line0.off); return; }
   if (!drag) return;
   if (drag.kind === "axis") { yMan.half = drag.half0 * Math.exp((ev.clientY - drag.y0) * 0.008); draw(); return; }
-  back = Math.max(0, drag.back0 + (ev.clientX - drag.x0) / geo.sw);   // draw() caps it at the latest candle
+  back = drag.back0 + (ev.clientX - drag.x0) / geo.sw;   // draw() caps it: newest candle at most, empty room at most 80%
   const now = performance.now(); (drag.trail = drag.trail || []).push({ t: now, x: ev.clientX });
   while (drag.trail.length > 2 && now - drag.trail[0].t > 100) drag.trail.shift();
   if (drag.mid0 == null && Math.abs(ev.clientY - drag.y0) > 8) { drag.y0 = ev.clientY; drag.mid0 = manual().mid; }
@@ -513,7 +515,7 @@ function animate(step) { stopMomentum(); let last = performance.now(); mom = {};
   const tick = now => { const dt = Math.min(40, now - last); last = now; if (step(dt) === false) { mom = null; return; } mom.raf = requestAnimationFrame(tick); };
   mom.raf = requestAnimationFrame(tick); }
 function glide(v) {
-  animate(dt => { back = Math.max(0, Math.min(geo.maxBack, back + v * dt / geo.sw)); draw(); v *= Math.pow(0.996, dt);
+  animate(dt => { back = Math.max(geo.minBack, Math.min(geo.maxBack, back + v * dt / geo.sw)); draw(); v *= Math.pow(0.996, dt);
     return Math.abs(v) > 0.02 && back > 0 && back < geo.maxBack; });
 }
 // » : glide back to the newest candle, zoom kept
@@ -530,7 +532,7 @@ function setTool(t) { tool = tool === t ? null : t; tool2 = null; $("bLevel").cl
 
 function chooseSide(d) {
   if (S.trade || S.done) return;
-  S.dir = S.dir === d ? 0 : d; back = 0; stopMomentum(); S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
+  S.dir = S.dir === d ? 0 : d; back = Math.min(back, 0); stopMomentum(); S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
   $("bLong").classList.toggle("on", S.dir === 1); $("bShort").classList.toggle("on", S.dir === -1);
   $("ticket").hidden = !S.dir; buttons(); fit();
   if (S.dir) { const e = entryPx(), a = atr(); S.tp = e + S.dir * 3 * a; setStop(e - S.dir * 1.5 * a); }
@@ -571,7 +573,7 @@ function placeTrade() {
   const flipRes = simulate(b, from, -S.dir, entry + S.dir * risk, entry - (tp - entry), hold);
   const you = netR(S.dir, entry, risk, res.px), other = netR(-S.dir, entry, risk, flipRes.px);
   S.trade = { entry, sl, tp, res, you, flip: (you + other) / 2, tag: "Auto", pos: +rangePos().toFixed(3), setup: setupOf(S.dir, rangePos()), withTrend: S.dir === bias(), shown: S.t, tf: TFN[tfm], days: hold / 96 };
-  pending = null; back = 0; stopMomentum(); $("ticket").hidden = true; lock(true);
+  pending = null; back = Math.min(back, 0); stopMomentum(); $("ticket").hidden = true; lock(true);
   say(`Trade running… entry ${fmt(P(entry))}, stop ${fmt(P(sl))}, target ${fmt(P(tp))}.`);
   timer = setInterval(() => { S.trade.shown = Math.min(S.trade.shown + Math.max(1, tfm / 2), res.i); draw(); if (S.trade.shown >= res.i) finish(); }, 110);
   buttons(); fit();
@@ -636,10 +638,10 @@ const ACCT_KEY = "levelDeskAccount";
 let acct = null;
 try { acct = JSON.parse(localStorage.getItem(ACCT_KEY) || "null"); } catch (e) { acct = null; }
 const lastId = () => journal.length ? String(journal[journal.length - 1].id) : "";
-const acctDefault = () => ({ cap: 1000, mode: "pct", pct: 1, fixed: 10, startAfterId: lastId(), startedAt: Date.now(), updatedAt: 0 });
+const acctDefault = () => ({ cap: 1000, mode: "pct", pct: 1, fixed: 10, from: "all", startAfterId: "", startedAt: 0, updatedAt: 0 });
 // in the account: made after it started (time) and after its starting trade (id). The time rule keeps older history
 // out even when another device's history arrives later through sync.
-const inAcct = (r, a) => String(r.id) > a.startAfterId && (r.played || 0) > (a.startedAt || 0);
+const inAcct = (r, a) => a.from !== "start" || (String(r.id) > a.startAfterId && (r.played || 0) > (a.startedAt || 0));   // missing "from" = all trades
 const acctRows = (a = acct) => a ? journal.filter(r => inAcct(r, a)) : [];
 // the trades before the account started, replayed with the account's capital and risk (a "what if", changes nothing)
 function learnLine(a = acct) {
@@ -686,7 +688,9 @@ function acctUiSet() {
   if (document.activeElement !== $("iRiskV")) $("iRiskV").value = acct.mode === "fixed" ? acct.fixed : acct.pct;
   $("sMode").value = acct.mode;
   const n = acctRows().length, d = new Date(acct.startedAt || Date.now());
-  $("acctNote").textContent = `Account started ${d.toLocaleDateString()} · ${n} trade${n === 1 ? "" : "s"} in it. Earlier trades count in R only.`;
+  $("acctNote").textContent = acct.from !== "start" ? `Counting all your ${n} trade${n === 1 ? "" : "s"} from ${money(acct.cap)} USDT.`
+    : `Account started ${d.toLocaleDateString()} · ${n} trade${n === 1 ? "" : "s"} in it. Earlier trades count in R only.`;
+  $("bAllTrades").hidden = acct.from !== "start";
 }
 function acctEdit() {
   if (!acct) return;
@@ -1037,8 +1041,9 @@ $("bNewAcct").onclick = () => {
   const cap = parseFloat($("iCap").value) > 0 ? parseFloat($("iCap").value) : acct.cap;
   if (!newAcctArmed) { newAcctArmed = true; $("bNewAcct").textContent = `Tap again: new ${money(cap)} USDT account`; setTimeout(() => { newAcctArmed = false; $("bNewAcct").textContent = "Start a new account"; }, 3000); return; }
   newAcctArmed = false; $("bNewAcct").textContent = "Start a new account";
-  acct = { ...acct, cap, startAfterId: lastId(), startedAt: Date.now(), updatedAt: Date.now() }; acctSave();
+  acct = { ...acct, cap, from: "start", startAfterId: lastId(), startedAt: Date.now(), updatedAt: Date.now() }; acctSave();
 };
+$("bAllTrades").onclick = () => { if (!acct) return; acct = { ...acct, from: "all", updatedAt: Date.now() }; acctSave(); };
 acctUiSet();
 // sideways-scrolling rows: mark which edge has more, for the fade
 function edgeFade(el) {
