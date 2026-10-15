@@ -227,7 +227,7 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
 <script>
 "use strict";
 // Clock and simulation run on 15m candles; 1H/4H/1D are built from them, so every view shows the same market.
-const FEE = 0.0005, MARGIN = 30, M15 = 900e3;
+const FEE = 0.0005, OFFSET = 5, M15 = 900e3;   // OFFSET: empty candle slots right of the newest candle (TradingView-like)
 // max holding time in 15m candles, by the timeframe the trade was placed on: 5 days, 5 days, 20 days, 60 days
 const HOLD = { 1: 480, 4: 480, 16: 1920, 96: 5760 }, MAXHOLD = 5760, TFN = { 1: "15m", 4: "1H", 16: "4H", 96: "1D" };
 const $ = id => document.getElementById(id);
@@ -321,11 +321,14 @@ function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = css("--panel"); ctx.fillRect(0, 0, w, h);
   if (!S) return;
-  const b = S.b, m = tfm, V = Math.round(nBars), slots = V + MARGIN;
+  const b = S.b, m = tfm, slots = Math.round(nBars);   // the plot is `slots` candles wide
   const upto = S.trade ? S.trade.shown : S.t, lastJ = Math.floor(upto / m), nowJ = Math.floor(S.t / m);
   // back = candles scrolled into history (fractional while a finger pans); the right edge never passes the latest shown candle
   const B = back = Math.max(0, Math.min(back, lastJ - 5));
-  const first = Math.max(0, nowJ - B - V + 1, lastJ - B - slots + 6), endJ = Math.floor(lastJ - B);
+  // right edge in candle units: at "now" the newest candle plus a small offset; scrolled back, candles fill the width.
+  // While a trade plays the view holds still until the playing candle reaches the edge, then scrolls with it.
+  const anchor = S.trade && !S.done ? Math.max(nowJ + 1 + OFFSET, lastJ + 1) : lastJ + 1 + OFFSET;
+  const edge = anchor - B, first = edge - slots, endJ = Math.min(lastJ, Math.ceil(edge) - 1);   // never a candle after lastJ
   const bars = []; let hi = -Infinity, lo = Infinity;
   for (let j = Math.max(0, Math.floor(first)); j <= endJ; j++) { const k = candle(b, m, j, upto); k.j = j; bars.push(k); if (k.h > hi) hi = k.h; if (k.l < lo) lo = k.l; }
   for (const v of [S.sl, S.tp].filter(v => v != null)) { hi = Math.max(hi, v); lo = Math.min(lo, v); }
@@ -355,6 +358,7 @@ function draw() {
     const lbl = m >= 16 ? `${d.getUTCDate()}/${d.getUTCMonth() + 1}` : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
     if (X(j * m) + 2 + ctx.measureText(lbl).width <= pw) ctx.fillText(lbl, X(j * m) + 2, h - 10);   // never into the price scale
   }
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, pw, h); ctx.clip();   // candles and drawings stop at the price scale
   if (S.trade) { const x = X(S.t + 1); ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 20); ctx.stroke(); ctx.setLineDash([]); }
 
   const bw = Math.max(1, sw * 0.7), up = css("--up"), dn = css("--down");
@@ -372,6 +376,7 @@ function draw() {
       ctx.strokeStyle = css("--trend"); ctx.beginPath(); ctx.moveTo(X(l.t1), Y(l.p1)); ctx.lineTo(X(end), Y(yAt(end))); ctx.stroke(); }
   }
   if (tool === "t" && tool2) { ctx.fillStyle = css("--trend"); ctx.beginPath(); ctx.arc(X(tool2.t), Y(tool2.p), 4, 0, 7); ctx.fill(); }
+  ctx.restore();
   const tag = (u, c, label) => { const y = Y(u); ctx.strokeStyle = c; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = c; ctx.fillRect(pw, y - 8, axis, 16); ctx.fillStyle = css("--panel"); ctx.fillText(label, pw + 4, y); };
   const tr = S.trade || pending;
@@ -634,7 +639,15 @@ const lastId = () => journal.length ? String(journal[journal.length - 1].id) : "
 const acctDefault = () => ({ cap: 1000, mode: "pct", pct: 1, fixed: 10, startAfterId: lastId(), startedAt: Date.now(), updatedAt: 0 });
 // in the account: made after it started (time) and after its starting trade (id). The time rule keeps older history
 // out even when another device's history arrives later through sync.
-const acctRows = (a = acct) => a ? journal.filter(r => String(r.id) > a.startAfterId && (r.played || 0) > (a.startedAt || 0)) : [];
+const inAcct = (r, a) => String(r.id) > a.startAfterId && (r.played || 0) > (a.startedAt || 0);
+const acctRows = (a = acct) => a ? journal.filter(r => inAcct(r, a)) : [];
+// the trades before the account started, replayed with the account's capital and risk (a "what if", changes nothing)
+function learnLine(a = acct) {
+  const rows = a ? journal.filter(r => !inAcct(r, a)) : [];
+  if (!rows.length) return null;
+  const p = acctStats(rows, { ...a, mode: "pct" }), f = acctStats(rows, { ...a, mode: "fixed" }), n0 = x => Math.round(x).toLocaleString("en-US");
+  return [`Learning trades (${rows.length})`, `at ${a.pct}% risk ${n0(a.cap)} → ${n0(p.bal)} USDT (worst drop -${p.ddPct.toFixed(0)}%); at a fixed ${n0(a.fixed)} USDT → ${n0(f.bal)} USDT`];
+}
 function acctStats(rows = acctRows(), a = acct) {
   let bal = a.cap, peak = a.cap, dd = 0, ddPct = 0; const per = new Map();
   for (const r of rows) {
@@ -713,6 +726,7 @@ function renderStats() {
     ["Average per trade", sg(a.you)],
     ["Total", sg(a.tot)],
     ...(m && m.n ? [[`Average per trade in this account (${m.n})`, sgu(m.avg)], ["Risk on the next trade", `${money(m.risk)} USDT`]] : []),
+    ...(acct && learnLine() ? [learnLine()] : []),
     ["Coin flip with the same stops", sg(a.flip)],
     ["Your edge over the coin flip", `${sg(e.edge)}<small>luck range ${a.n > 1 ? `${sg(e.lo)} to ${sg(e.hi)}` : "…"}</small>`],
     [`Last ${last.n} trades edge`, sg(last.edge)],
