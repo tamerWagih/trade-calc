@@ -29,30 +29,41 @@ button.tag.on { background: var(--accent); color: #fff; border-color: var(--acce
 .curve svg { display: block; width: 100%; height: 70px; }
 .curve .tip { display: block; text-align: right; font: 500 11px var(--f-data); color: var(--muted); }
 .chip.warn { color: var(--down); }
-.keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .keys div { background: var(--chip); border-radius: 4px; padding: 5px 6px; }
 .keys b { display: block; font: 600 16px var(--f-data); font-variant-numeric: tabular-nums; }
 .keys span { font-size: 11px; color: var(--muted); }
 .chip.edge { color: var(--accent); }
-body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--f-body); padding: 10px 16px 20px; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--f-body); padding: 10px 16px 20px; }
 h1 { font: 700 19px/1.1 var(--f-display); margin: 0; }
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
 .chip { font: 500 12px var(--f-data); background: var(--chip); padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
-.chip.up { color: var(--up); } .chip.down { color: var(--down); }
+.chip.up { color: var(--up); } .chip.down { color: var(--down); } .chip.ok { color: var(--up); }
+.acct { display: flex; gap: 6px; align-items: center; }
+.acctForm { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.acctForm input { font: 500 14px var(--f-body); padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); width: 14em; max-width: 100%; }
+.acctForm .pw { display: flex; gap: 4px; align-items: center; max-width: 100%; }
+.acctForm .pw input { min-width: 0; }
+.acctForm p { margin: 0; flex-basis: 100%; font-size: 12.5px; }
 .wrap { display: grid; grid-template-columns: minmax(0,1fr) 290px; gap: 12px; align-items: start; }
 @media (max-width: 860px) { .wrap { grid-template-columns: minmax(0,1fr); } }
-.chartbox { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-width: 0; overflow: hidden; }
+/* chart box: tools + actions on top (desktop), canvas, ticket, message */
+.chartbox { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-width: 0; overflow: clip; display: flex; flex-wrap: wrap; }
+.chartbox > canvas, .chartbox > .ticket, .chartbox > .msg { flex: 1 1 100%; }
 .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tools { flex: 1 1 auto; }
+.actbar { flex: 0 1 auto; }
 .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
 canvas { display: block; width: 100%; height: max(360px, calc(100vh - 200px)); touch-action: none; cursor: crosshair; }
-.msg { padding: 7px 12px; border-top: 1px solid var(--line); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.msg { padding: 7px 12px; border-top: 1px solid var(--line); font-size: 14px; }
 .msg.win { background: color-mix(in srgb, var(--up) 18%, var(--panel)); } .msg.loss { background: color-mix(in srgb, var(--down) 16%, var(--panel)); }
 .msg b { font-weight: 600; }
 .ticket { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 7px 12px; border-top: 1px solid var(--line); background: var(--chip); }
 .ticket label { font: 600 12px var(--f-body); display: flex; gap: 5px; align-items: center; }
 .ticket input { font: 500 13px var(--f-data); width: 8.5em; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--fg); }
 button, select { font: 600 12.5px var(--f-body); color: var(--fg); background: var(--chip); border: 1px solid var(--line);
-  border-radius: 4px; padding: 4px 9px; cursor: pointer; }
+  border-radius: 4px; padding: 4px 9px; cursor: pointer; touch-action: manipulation; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button:disabled { opacity: .4; cursor: default; }
@@ -65,31 +76,79 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 aside { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
 .card h2 { font: 700 14px var(--f-display); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 6px; color: var(--muted); }
-.stats { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 13px; }
+.riskIn { display: flex; gap: 6px; align-items: center; font: 600 12.5px var(--f-body); margin-bottom: 4px; }
+.riskIn input { font: 500 13px var(--f-data); width: 6em; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
+.stats { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 13px; }
 .stats span:nth-child(even) { font: 500 13px var(--f-data); text-align: right; font-variant-numeric: tabular-nums; }
+.stats small { display: block; font-size: 11.5px; color: var(--muted); }
 .verdict { margin-top: 8px; font-size: 13px; padding: 7px; border-radius: 4px; background: var(--chip); }
 .pos { color: var(--up); } .neg { color: var(--down); }
 .tbl { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font: 12px var(--f-data); font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { font: 600 11px var(--f-body); color: var(--muted); }
-ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; }
 .small { font-size: 12px; color: var(--muted); }
+/* Phones and tablets: one scrollable row of tools, big action buttons in a sticky bottom bar, chart sized to the screen
+   (JS sets its height), progress and details below the chart. Inputs at 16px so iOS does not zoom. */
+@media (max-width: 860px), (max-height: 500px) {
+  body { padding: 6px 6px 12px; }
+  h1 { display: none; }
+  .top { flex-wrap: nowrap; overflow-x: auto; margin-bottom: 6px; scrollbar-width: none; }
+  .top::-webkit-scrollbar, .tools::-webkit-scrollbar { display: none; }
+  .top > * { flex: none; } .top button { min-height: 32px; white-space: nowrap; }
+  .top .acct { order: -1; }
+  .tools { flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto; padding: 4px 6px; scrollbar-width: none; }
+  .tools button { min-height: 36px; flex: none; }
+  .actbar { order: 10; flex: 1 1 100%; flex-wrap: nowrap; position: sticky; bottom: 0; z-index: 2; background: var(--panel);
+            border-top: 1px solid var(--line); border-bottom: 0; padding: 6px; gap: 5px; }
+  .actbar .sep { display: none; }
+  .actbar button { flex: 1 1 0; min-width: 0; min-height: 46px; padding: 2px 3px; font-size: 14px; line-height: 1.1; }
+  .actbar button.sm { flex-grow: .7; }
+  .actbar.busy #bNew { display: none; }
+  .msg { font-size: 13px; padding: 5px 8px; line-height: 1.35; min-height: calc(2.7em + 10px); }
+  .ticket { padding: 6px 8px; gap: 6px; }
+  .ticket input, .ticket select, .acctForm input, .riskIn input { font-size: 16px; }
+  .ticket input { width: 7.2em; }
+  .ticket button, .ticket select { min-height: 40px; }
+  .acctForm button { min-height: 40px; }
+  .wrap { gap: 8px; }
+}
+/* phone held sideways: chart on the left, action buttons in a column on the right */
+@media (max-height: 500px) and (orientation: landscape) {
+  .chartbox { display: grid; grid-template-columns: minmax(0, 1fr) 150px; grid-template-areas: "tools act" "cv act" "ticket act" "msg act"; align-items: start; }
+  .tools { grid-area: tools; } .chartbox > canvas { grid-area: cv; } .ticket { grid-area: ticket; } .msg { grid-area: msg; }
+  .actbar { grid-area: act; position: static; display: grid; grid-template-columns: 1fr 1fr; align-content: start; border-top: 0; border-left: 1px solid var(--line); align-self: stretch; }
+  .actbar button { min-height: 44px; }
+  .actbar #b1, .actbar #bNew, .actbar #bStart, .actbar #bFast { grid-column: span 2; }
+}
 </style>
 
 <div class="top">
   <h1>Level Desk Trainer</h1>
-  <span class="chip">Mystery coin</span>
+  <span class="chip" id="cSync">Journal: not signed in (this device only)</span>
+  <span class="acct" id="acct">
+    <button id="bAcct">Sign in / Create account</button>
+    <span id="acctMe" class="acct" hidden><span class="chip" id="acctEmail"></span><button id="bSignOut">Sign out</button></span>
+  </span>
+  <span class="chip" id="cSession">Today: 0 trades</span>
   <span class="chip" id="cTrend">Big trend: …</span>
   <span class="chip" id="cAtr">ATR …</span>
   <span class="chip" id="cBars">Waited 0h</span>
-  <span class="chip" id="cSession">Today: 0 trades</span>
-  <span class="chip" id="cSave">Journal: saved in this browser</span>
+  <span class="chip" id="cSave" hidden></span>
 </div>
+<form class="acctForm" id="acctForm" hidden autocomplete="on">
+  <input id="aEmail" type="email" placeholder="Email" autocomplete="username" required aria-label="Email">
+  <span class="pw"><input id="aPass" type="password" placeholder="Password (6+ characters)" autocomplete="current-password" required minlength="6" aria-label="Password">
+    <button type="button" id="bShowPw">Show</button></span>
+  <button type="submit" class="primary" id="bSignIn">Sign in</button>
+  <button type="button" id="bSignUp">Create account</button>
+  <button type="button" id="bAcctClose">Close</button>
+  <p id="acctMsg" class="small">One account keeps your journal the same on your PC and your phone.</p>
+</form>
 
 <div class="wrap">
-  <div class="chartbox">
-    <div class="bar">
+  <div class="chartbox" id="chartbox">
+    <div class="bar tools">
       <button class="tf" data-m="1">15m</button><button class="tf" data-m="4">1H</button><button class="tf" data-m="16">4H</button><button class="tf" data-m="96">1D</button>
       <span class="sep"></span>
       <button id="bLevel" title="Horizontal support / resistance line (key S)">S/R line</button>
@@ -97,43 +156,36 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
       <button id="bUndo">Undo</button>
       <button id="bClear">Clear</button>
       <span class="sep"></span>
-      <button id="b1" title="One bar of the timeframe you are viewing (key N)">Next bar ▸</button>
-      <button id="b6">+6</button>
-      <button id="b24">+24</button>
-      <span class="sep"></span>
       <button id="bZin" title="Zoom in">＋</button><button id="bZout" title="Zoom out">－</button><button id="bFit">Fit</button>
+    </div>
+    <div class="bar actbar" id="actbar">
+      <button id="b1" title="One bar of the timeframe you are viewing (key N)">Next bar ▸</button>
+      <button id="b6" class="sm">+6</button>
+      <button id="b24" class="sm">+24</button>
       <span class="sep"></span>
       <button class="long" id="bLong">Buy</button>
       <button class="short" id="bShort">Sell</button>
-      <button id="bNew">New chart</button>
+      <button class="primary" id="bStart" hidden>▶ Start trade</button>
+      <button id="bFast" hidden>Fast forward ▸▸</button>
+      <button id="bNew">Next chart</button>
     </div>
     <canvas id="cv" aria-label="Price chart"></canvas>
     <div class="ticket" id="ticket" hidden>
       <label for="iStop">Stop <input id="iStop" type="number" step="any" inputmode="decimal"></label>
       <label for="iTp">Target <input id="iTp" type="number" step="any" inputmode="decimal"></label>
       <select id="sR" aria-label="Quick target"><option value="">Target = …</option><option value="1">1R</option><option value="1.5">1.5R</option><option value="2">2R</option><option value="3">3R</option></select>
-      <button class="primary" id="bStart">▶ Start trade</button>
       <button id="bCancel">Cancel</button>
     </div>
-    <div class="msg"><span id="msg">Loading 2 years of real candles…</span><button id="bFast" hidden>Fast forward ▸▸</button></div>
+    <div class="msg"><span id="msg">Loading 2 years of real candles…</span></div>
   </div>
 
   <aside>
     <div class="card">
       <h2>Your progress</h2>
-      <div class="curve" id="curveBox"><div class="small">Your edge over the coin flip, last 20 trades. Above the line = beating chance.</div><span class="tip" id="curveTip"></span><svg id="curve" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Learning curve"></svg></div>
+      <label class="riskIn" for="iRisk">Risk per trade ($) <input id="iRisk" type="number" min="0" step="any" inputmode="decimal" value="10"></label>
       <div class="keys" id="keyStats"></div>
+      <div class="curve" id="curveBox"><div class="small">Your edge over the coin flip, last 20 trades. Above the line = beating chance.</div><span class="tip" id="curveTip"></span><svg id="curve" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Learning curve"></svg></div>
       <div class="verdict" id="verdict"></div>
-    </div>
-    <div class="card">
-      <h2>How to play</h2>
-      <ol>
-        <li><b>1D</b>: read the trend. Draw support and resistance on <b>1D</b> and <b>4H</b>, then trade on <b>4H</b>.</li>
-        <li><b>S/R line</b>: click an old swing high or low. <b>Trend line</b>: two clicks. Lines stay on every timeframe.</li>
-        <li><b>Next bar ▸</b> until price reaches your line.</li>
-        <li><b>Buy</b> or <b>Sell</b>, drag the red STOP and green TARGET lines, then <b>▶ Start trade</b>.</li>
-      </ol>
-      <p class="small">Zoom: drag the price numbers on the right, drag the chart to move it, mouse wheel for time. Fill = next candle's open, 0.05% fee per side.</p>
     </div>
     <div class="card">
       <h2>Details</h2>
@@ -141,7 +193,7 @@ ol { margin: 0; padding-left: 18px; font-size: 13px; } li { margin-bottom: 3px; 
     </div>
     <div class="card">
       <h2>Journal</h2>
-      <div class="tbl"><table><thead><tr><th>Coin</th><th>Date</th><th>TF</th><th>Side</th><th>Setup</th><th>You</th><th>Flip</th></tr></thead><tbody id="jt"></tbody></table></div>
+      <div class="tbl"><table><thead><tr><th>Coin</th><th>Date</th><th>TF</th><th>Side</th><th>You</th><th>$</th><th>Flip</th></tr></thead><tbody id="jt"></tbody></table></div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
         <button id="bFileNew" hidden title="Create a journal file; every trade is then written to it automatically">New journal file…</button>
         <button id="bFileOpen" hidden title="Connect an existing journal file and load its trades">Open journal file…</button>
@@ -219,10 +271,6 @@ function rangeHL() {
   return { hi, lo, from: Math.max(0, S.t - w + 1) };
 }
 function rangePos() { const { hi, lo } = rangeHL(); return hi > lo ? (S.b.C[S.t] - lo) / (hi - lo) : 0.5; }
-function setupRecord(name) {
-  const g = journal.filter(r => (r.setup || "") === name);
-  return g.length ? { n: g.length, edge: g.reduce((a, r) => a + r.you - r.flip, 0) / g.length } : null;
-}
 console.assert(setupOf(1, 0.1) === SETUPS[0] && setupOf(-1, 0.9) === SETUPS[0] && setupOf(1, 0.9) === SETUPS[1] && setupOf(-1, 0.1) === SETUPS[1] && setupOf(1, 0.5) === SETUPS[2], "setup rule");
 
 // One coin file is loaded per chart (GitHub Pages library); only the current coin stays in memory.
@@ -239,9 +287,7 @@ async function newChart() {
   const b = decode(sym);
   let t = 5200 + Math.floor(Math.random() * (b.C.length - 5200 - MAXHOLD - 400)); t = t - (t % 96) + 95;  // start at a day close, so every timeframe's last candle is complete
   S = { sym, b, k: DATA[sym].base * Math.exp((Math.random() - 0.5) * 3), t, start: t, lines: [], trade: null, done: false, dir: 0, sl: null, tp: null };
-  pending = null; yMan = null; tool = null; setTool(null); $("ticket").hidden = true;
-  $("bLong").classList.remove("on"); $("bShort").classList.remove("on");
-  $("bNew").textContent = "New chart"; $("bNew").classList.remove("primary"); $("msg").parentNode.className = "msg";
+  pending = null; yMan = null; tool = null; setTool(null); clearSide();
   refresh(); hint();
 }
 
@@ -316,14 +362,18 @@ const zoomTime = f => { nBars = Math.min(400, Math.max(25, nBars * f)); draw(); 
 const startPan = ev => { drag = { kind: "pan", y0: ev.clientY, mid0: manual().mid }; cv.setPointerCapture(ev.pointerId); };
 cv.addEventListener("pointerdown", ev => {
   if (!S || !geo) return;
-  const q = at(ev);
+  const q = at(ev), touch = ev.pointerType !== "mouse", grab = touch ? 24 : 14;
+  if (S.dir && !S.trade && S.sl != null) {
+    // grab the nearest of STOP / TARGET, also on its price label; fingers get a wider grab distance
+    const dT = Math.abs(q.y - geo.Y(S.tp)), dS = Math.abs(q.y - geo.Y(S.sl));
+    if (Math.min(dT, dS) < grab) { manual(); dragging = dT < dS ? "tp" : "sl"; cv.setPointerCapture(ev.pointerId); return; }
+  }
   if (q.x > geo.pw) { drag = { kind: "axis", y0: ev.clientY, half0: manual().half }; cv.setPointerCapture(ev.pointerId); return; }
   if (S.trade) { startPan(ev); return; }
   if (S.dir) {
+    if (touch) { startPan(ev); return; }   // a finger away from the lines moves the chart, it does not jump the stop
     manual();  // freeze the scale so the line follows the pointer
-    const dT = Math.abs(q.y - geo.Y(S.tp)), dS = Math.abs(q.y - geo.Y(S.sl));
-    dragging = dT < 14 && dT < dS ? "tp" : "sl"; cv.setPointerCapture(ev.pointerId);
-    if (dragging === "sl" && dS >= 14) setStop(q.p);
+    dragging = "sl"; cv.setPointerCapture(ev.pointerId); setStop(q.p);
     return;
   }
   if (tool === "h") { S.lines.push({ t: "h", p: q.p }); draw(); hint(); }
@@ -338,6 +388,7 @@ cv.addEventListener("pointermove", ev => {
   if (drag && drag.kind === "axis") { yMan.half = drag.half0 * Math.exp((ev.clientY - drag.y0) * 0.008); draw(); }
   else if (drag) { yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half; draw(); }
   else if (dragging && S.dir && !S.trade) (dragging === "tp" ? setTarget : setStop)(q.p);
+  if (ev.pointerType !== "mouse") return;
   const near = S.dir && !S.trade && S.sl != null && (Math.abs(q.y - geo.Y(S.tp)) < 14 || Math.abs(q.y - geo.Y(S.sl)) < 14);
   cv.style.cursor = q.x > geo.pw || near || dragging ? "ns-resize" : drag ? "grabbing" : "crosshair";
 });
@@ -351,9 +402,19 @@ function chooseSide(d) {
   if (S.trade || S.done) return;
   S.dir = S.dir === d ? 0 : d; S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
   $("bLong").classList.toggle("on", S.dir === 1); $("bShort").classList.toggle("on", S.dir === -1);
-  $("ticket").hidden = !S.dir;
+  $("ticket").hidden = !S.dir; buttons(); fit();
   if (S.dir) { const e = entryPx(), a = atr(); S.tp = e + S.dir * 3 * a; setStop(e - S.dir * 1.5 * a); }
   else { hint(); draw(); }
+}
+// clear the side, ticket and win/loss colour (new chart, or the same chart after a finished trade)
+function clearSide() {
+  $("ticket").hidden = true; $("bLong").classList.remove("on"); $("bShort").classList.remove("on");
+  $("bNew").classList.remove("primary"); $("msg").parentNode.className = "msg"; buttons(); fit();
+}
+// Start trade / Fast forward share the action bar; on phones they take Next chart's place while shown
+function buttons() {
+  $("bStart").hidden = !(S && S.dir && !S.trade && !S.done); $("bFast").hidden = !timer;
+  $("actbar").classList.toggle("busy", !$("bStart").hidden || !$("bFast").hidden);
 }
 function setStop(p) {
   if (!(S.dir * (entryPx() - p) > 0)) { say(`<b>The stop must be ${S.dir > 0 ? "BELOW" : "ABOVE"} the entry</b> (blue line).`); return; }
@@ -380,27 +441,36 @@ function placeTrade() {
   const flipRes = simulate(b, from, -S.dir, entry + S.dir * risk, entry - (tp - entry), hold);
   const you = netR(S.dir, entry, risk, res.px), other = netR(-S.dir, entry, risk, flipRes.px);
   S.trade = { entry, sl, tp, res, you, flip: (you + other) / 2, tag: "Auto", pos: +rangePos().toFixed(3), setup: setupOf(S.dir, rangePos()), withTrend: S.dir === bias(), shown: S.t, tf: TFN[tfm], days: hold / 96 };
-  pending = null; $("ticket").hidden = true; $("bFast").hidden = false; lock(true);
+  pending = null; $("ticket").hidden = true; lock(true);
   say(`Trade running… entry ${fmt(P(entry))}, stop ${fmt(P(sl))}, target ${fmt(P(tp))}.`);
   timer = setInterval(() => { S.trade.shown = Math.min(S.trade.shown + Math.max(1, tfm / 2), res.i); draw(); if (S.trade.shown >= res.i) finish(); }, 110);
+  buttons(); fit();
 }
 function finish() {
   clearInterval(timer); timer = null;
-  const t = S.trade; t.shown = Math.min(t.res.i + 4 * tfm, S.b.C.length - 1);
+  // show up to the close of the exit candle only, so the next trade on this chart starts without a peek ahead
+  const t = S.trade; t.shown = Math.min(closeOf(t.res.i), S.b.C.length - 1);
   const d = new Date(S.b.t0 + (S.t + 1) * M15), coin = S.sym.replace("USDT", "");
   const row = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), coin, date: d.toISOString().slice(0, 16).replace("T", " "), tf: t.tf, played: Date.now(), side: S.dir > 0 ? "Long" : "Short", tag: t.tag, setup: t.setup, pos: t.pos,
     r: +((t.tp - t.entry) / (t.entry - t.sl)).toFixed(2), withTrend: t.withTrend, how: t.res.how,
     you: +t.you.toFixed(3), flip: +t.flip.toFixed(3), hours: +((t.res.i - S.t) / 4).toFixed(2) };
-  journal.push(row); save(); cloudSave(row); fileSave(); S.done = true; $("bFast").hidden = true; lock(false); draw(); renderStats();
-  $("bNew").textContent = "Next chart →"; $("bNew").classList.add("primary"); $("msg").parentNode.className = "msg " + (t.you >= 0 ? "win" : "loss");
+  journal.push(row); save(); cloudSave(row); sbPush(row); fileSave(); S.done = true; lock(false); buttons(); draw(); renderStats();
+  $("bNew").classList.add("primary"); $("msg").parentNode.className = "msg " + (t.you >= 0 ? "win" : "loss");
   const word = t.res.how === "target" ? "Target hit" : t.res.how === "stop" ? "Stopped out" : `Closed after ${t.days} days (time limit)`;
-  say(`<b>${t.you >= 0 ? "WIN" : "LOSS"}: ${word}, ${t.you >= 0 ? "+" : ""}${t.you.toFixed(2)}R</b> after fees. It was <b>${coin}</b>, ${d.toUTCString().slice(5, 16)}. ${t.withTrend ? "" : "Against the big trend. "}Press <b>Next chart →</b>`);
+  say(`<b>${t.you >= 0 ? "WIN" : "LOSS"}: ${t.you >= 0 ? "+" : ""}${t.you.toFixed(2)}R = ${usd(t.you * riskUsd)}</b> after fees. ${word}. It was <b>${coin}</b>, ${d.toUTCString().slice(5, 16)}. ${t.withTrend ? "" : "Against the big trend. "}<b>Next bar</b> keeps going on this chart, <b>Next chart</b> starts a new one.`);
+  fit();
 }
 function lock(on) { for (const id of ["b1", "b6", "b24", "bNew", "bLong", "bShort", "bUndo", "bClear"]) $(id).disabled = on; if (!on) session(); }
 
+// last 15m index of the viewed-timeframe candle that contains 15m index i
+const closeOf = i => Math.floor(i / tfm) * tfm + tfm - 1;
 function wait(n) {
-  if (!S || S.trade) return;
-  if (S.done) { newChart(); return; }
+  if (!S || timer || (S.trade && !S.done)) return;
+  if (S.done) {   // the trade is saved; carry on with the same chart from the candle after the exit, lines kept
+    const exit = closeOf(S.trade.res.i);
+    if (exit + n * tfm > S.b.C.length - MAXHOLD - 2) { newChart(); return; }
+    S.t = exit; S.trade = null; S.done = false; S.dir = 0; S.sl = S.tp = null; pending = null; clearSide();
+  }
   S.t = Math.min(Math.floor((S.t + 1) / tfm) * tfm + n * tfm - 1, S.b.C.length - MAXHOLD - 2);
   if (S.dir) chooseSide(S.dir);
   refresh(); hint();
@@ -426,33 +496,46 @@ function hint() {
 }
 
 // ---------- scorecard ----------
+// money is only a view: $ = R x the risk per trade typed here (kept in this browser, not in the trades)
+const RISK_KEY = "levelDeskRisk";
+let riskUsd = 10;
+try { const v = parseFloat(localStorage.getItem(RISK_KEY)); if (v >= 0) riskUsd = v; } catch (e) {}
+const usd = v => `${v < 0 ? "-" : "+"}$${Math.abs(v).toFixed(2)}`;
 function agg(rows) {
   const n = rows.length; if (!n) return null;
   const s = k => rows.reduce((a, r) => a + r[k], 0);
   return { n, win: rows.filter(r => r.you > 0).length / n, you: s("you") / n, flip: s("flip") / n, tot: s("you") };
 }
+// edge per trade = you - coin flip; luck range = edge +/- 2 standard errors
+function edgeOf(rows) {
+  const n = rows.length; if (!n) return null;
+  const ed = rows.map(r => r.you - r.flip), edge = ed.reduce((x, y) => x + y, 0) / n;
+  const se = n > 1 ? Math.sqrt(ed.reduce((x, y) => x + (y - edge) ** 2, 0) / (n - 1) / n) : Infinity;
+  return { n, edge, lo: edge - 2 * se, hi: edge + 2 * se };
+}
+const TEST_FROM = 444, TEST_N = 100;   // confirmation test: trades 444-543, judged only once all 100 are done
 const sg = v => `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}R</span>`;
+const sgu = v => `<span class="${v >= 0 ? "pos" : "neg"}">${usd(v)}</span>`;
 function renderStats() {
   const a = agg(journal);
-  const key = (n, w, tot, e) => `<div><b>${n}</b><span>Trades</span></div><div><b>${w}</b><span>Win rate</span></div><div><b>${tot}</b><span>Total</span></div><div><b>${e}</b><span>Edge vs flip</span></div>`;
-  if (!a) { $("keyStats").innerHTML = key(0, "–", "–", "–"); $("stats").innerHTML = ""; $("verdict").textContent = "The scorecard compares you to a coin flip with the same stop and target, so luck can't fool you."; renderJournal(); renderCurve(); return; }
-  $("keyStats").innerHTML = key(a.n, (a.win * 100).toFixed(0) + "%", sg(a.tot), sg(a.you - a.flip));
-  const rows = [["Average per trade", sg(a.you)], ["Coin flip, same stops", sg(a.flip)]];
-  for (const tf of ["15m", "1H", "4H", "1D"]) { const g = agg(journal.filter(r => (r.tf || "1H") === tf)); if (g) rows.push([`${tf} trades (${g.n})`, `${sg(g.you)} vs flip ${sg(g.flip)}`]); }
-  const wt = agg(journal.filter(r => r.withTrend)), ag = agg(journal.filter(r => !r.withTrend));
-  if (wt) rows.push([`With trend (${wt.n})`, sg(wt.you)]);
-  if (ag) rows.push([`Against trend (${ag.n})`, sg(ag.you)]);
-  for (const name of SETUPS) { const g = agg(journal.filter(r => r.setup === name)); if (g) rows.push([`${name} (${g.n})`, `${sg(g.you)} vs flip ${sg(g.flip)}`]); }
-  // edge per trade = you - coin flip; luck band = 2 standard errors
-  const ed = journal.map(r => r.you - r.flip), edge = ed.reduce((x, y) => x + y, 0) / a.n;
-  const se = a.n > 1 ? Math.sqrt(ed.reduce((x, y) => x + (y - edge) ** 2, 0) / (a.n - 1) / a.n) : Infinity;
-  const lo = edge - 2 * se, hi = edge + 2 * se;
-  rows.push(["Luck range of your edge", a.n > 1 ? `${sg(lo)} to ${sg(hi)}` : "…"]);
+  const key = (n, w, totR, totU, avgU, e) => `<div><b>${n}</b><span>Trades</span></div><div><b>${w}</b><span>Win rate</span></div><div><b>${e}</b><span>Edge vs flip</span></div>`
+    + `<div><b>${totR}</b><span>Total R</span></div><div><b>${totU}</b><span>Total $</span></div><div><b>${avgU}</b><span>Average per trade</span></div>`;
+  if (!a) { $("keyStats").innerHTML = key(0, "–", "–", "–", "–", "–"); $("stats").innerHTML = ""; $("verdict").textContent = "The scorecard compares you to a coin flip with the same stop and target, so luck can't fool you."; renderJournal(); renderCurve(); session(); return; }
+  const e = edgeOf(journal), last = edgeOf(journal.slice(-100));
+  $("keyStats").innerHTML = key(a.n, (a.win * 100).toFixed(0) + "%", sg(a.tot), sgu(a.tot * riskUsd), sgu(a.you * riskUsd), sg(e.edge));
+  const test = journal.slice(TEST_FROM - 1, TEST_FROM - 1 + TEST_N), te = test.length === TEST_N ? edgeOf(test) : null;
+  const rows = [
+    ["Average per trade", `${sg(a.you)} = ${sgu(a.you * riskUsd)}`],
+    ["Coin flip with the same stops", sg(a.flip)],
+    ["Your edge over the coin flip", `${sg(e.edge)}<small>luck range ${a.n > 1 ? `${sg(e.lo)} to ${sg(e.hi)}` : "…"}</small>`],
+    [`Last ${last.n} trades edge`, sg(last.edge)],
+    [`Confirmation test: trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1}`, `${test.length}/${TEST_N} done`],
+  ];
   $("stats").innerHTML = rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("");
-  $("verdict").innerHTML = a.n < 50 ? `${50 - a.n} more trades before any verdict. Right now your true edge could be anywhere in the luck range (see Details).`
-    : lo > 0 ? `<b class="pos">Real skill: you beat a coin flip by ${edge.toFixed(2)}R per trade, and the whole luck range is above zero.</b>`
-    : hi < 0 ? `<b class="neg">You are doing worse than a coin flip, and it's not bad luck.</b> Your side choice is costing you; look at which setup type loses most.`
-    : `<b>Not proven yet.</b> Your edge is ${sg(edge)} per trade but the luck range still includes zero. Keep training; the range narrows with every trade.`;
+  $("verdict").innerHTML = !te ? `Confirmation test: trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1}: <b>${test.length}/${TEST_N} done</b>. No verdict until all ${TEST_N} are done.`
+    : te.lo > 0 ? `<b class="pos">Confirmation test passed: on trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1} you beat the coin flip by ${te.edge.toFixed(2)}R per trade, and the whole luck range (${te.lo.toFixed(2)} to ${te.hi.toFixed(2)}R) is above zero.</b>`
+    : te.hi < 0 ? `<b class="neg">Confirmation test failed: on trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1} you did worse than the coin flip (${te.edge.toFixed(2)}R per trade), and it's not bad luck.</b>`
+    : `<b>Confirmation test not proven:</b> on trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1} your edge was ${sg(te.edge)} per trade, but the luck range (${sg(te.lo)} to ${sg(te.hi)}) includes zero.`;
   renderJournal(); renderCurve(); session();
 }
 // rolling 20-trade average of (you - coin flip), one point per trade from trade 20 on
@@ -480,13 +563,14 @@ function session() {
   $("cSession").className = "chip" + (k >= 3 ? " warn" : "");
 }
 function renderJournal() {
-  $("jt").innerHTML = journal.slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${r.date.slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${r.setup ? r.setup.split(" ")[0] : "–"}</td><td>${sg(r.you)}</td><td>${sg(r.flip)}</td></tr>`).join("")
+  $("jt").innerHTML = journal.slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${String(r.date).slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${sg(r.you)}</td><td>${sgu(r.you * riskUsd)}</td><td>${sg(r.flip)}</td></tr>`).join("")
     || `<tr><td colspan="7" class="small">Your trades will appear here.</td></tr>`;
 }
 let resetArmed = false;
 $("bReset").onclick = () => {
   if (!resetArmed) { resetArmed = true; $("bReset").textContent = "Click again to erase"; setTimeout(() => { resetArmed = false; $("bReset").textContent = "Reset"; }, 3000); return; }
   const old = journal; journal = []; save(); renderStats(); resetArmed = false; $("bReset").textContent = "Reset";
+  sbReset();
   if (DB) (async () => { for (const r of old) if (r.id) { try { await DB.collection("trades").doc(r.id).delete(); } catch (e) {} } })();
   fileSave();
 };
@@ -539,9 +623,10 @@ function fileSave() {
   if (!fileH) return;
   const body = JSON.stringify({ app: "level-desk-trainer", saved: new Date().toISOString(), trades: journal }, null, 1);
   fileQ = fileQ.then(async () => { const w = await fileH.createWritable(); await w.write(body); await w.close(); fileOk(); })
-    .catch(() => { $("cSave").textContent = "Journal: file save failed, kept in browser"; $("cSave").className = "chip warn"; });
+    .catch(() => fileChip("File: save failed, trades kept in the browser", true));
 }
-function fileOk() { $("cSave").textContent = `Journal: browser + file ${fileH.name} ✓ (${journal.length})`; $("cSave").className = "chip"; $("fileNote").hidden = true; }
+function fileOk() { fileChip(`File: ${fileH.name} ✓ (${journal.length})`); $("fileNote").hidden = true; }
+function fileChip(text, warn) { $("cSave").hidden = false; $("cSave").textContent = text; $("cSave").className = "chip" + (warn ? " warn" : ""); }
 async function useFile(h, readFirst) {
   fileH = h; try { await idb("put", h); } catch (e) {}
   if (readFirst) {
@@ -577,7 +662,7 @@ if (HOST === "pages") {
 let DB = null;
 function cloudSave(row) {
   if (!DB) return;
-  DB.collection("trades").doc(row.id).set(row).catch(() => { $("cSave").textContent = "Journal: cloud save failed, kept in browser"; });
+  DB.collection("trades").doc(row.id).set(row).catch(() => { fileChip("Cloud save failed, kept in browser", true); });
 }
 (async () => {
   const db = window.claude && await window.claude.use("db");
@@ -591,12 +676,156 @@ function cloudSave(row) {
     }
     // union: a trade whose cloud write failed stays from the browser copy
     journal = cloud.concat(journal.filter(r => !r.id || !ids.has(r.id))).sort((x, y) => (String(x.id) < String(y.id) ? -1 : 1)); save(); renderStats();
-    $("cSave").textContent = `Journal: saved to your account ✓ (${journal.length})`;
-  }, () => { $("cSave").textContent = "Journal: this browser only"; });
+    fileChip(`Saved to your account ✓ (${journal.length})`);
+  }, () => {});
 })();
+// ---------- journal sync (Supabase): every signed-in device keeps the same journal ----------
+// The browser copy is always written first; the server is a second copy. Rows are {id, data = whole trade};
+// row level security lets each signed-in user read and write only their own rows. Only the publishable key is here.
+const SB_URL = "https://zdxhzyhosvrivpbhsgct.supabase.co", SB_KEY = "sb_publishable_mTRRfuuINKff-dskLy3UHA_m8VAXvS0";
+const SB_LIB = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js";
+const SB_HOME = "https://tamerwagih.github.io/trade-calc/";
+const PEND_KEY = "levelDeskPending", WIPE_KEY = "levelDeskWipePending", PAGE = 1000, BATCH = 500;
+let sb = null, sbUser = null, sbBusy = null, sbAgain = false;
+const readList = k => { try { const v = JSON.parse(localStorage.getItem(k) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+const writeList = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+let sbPending = new Set(readList(PEND_KEY));   // trade ids not yet confirmed by the server
+const keepPending = () => writeList(PEND_KEY, [...sbPending]);
+function syncChip(state) {
+  const c = $("cSync");
+  c.textContent = state === "ok" ? `Journal: synced ✓ (${journal.length})` : state === "saving" ? "Journal: saving…"
+    : state === "offline" ? "Journal: offline, will sync" : "Journal: not signed in (this device only)";
+  c.className = "chip" + (state === "ok" ? " ok" : state === "offline" ? " warn" : "");
+}
+const oldId = r => "0old-" + String(r.coin + r.date + r.side).replace(/[^A-Za-z0-9-]/g, "");
+const asRow = r => ({ user_id: sbUser.id, id: r.id, data: r, updated_at: new Date().toISOString() });
+async function sbUpsert(rows) {
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { error } = await sb.from("trades").upsert(rows.slice(i, i + BATCH).map(asRow), { onConflict: "user_id,id" });
+    if (error) throw error;
+  }
+}
+async function sbFetchAll() {
+  const out = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await sb.from("trades").select("id,data").order("id").range(from, from + PAGE - 1);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < PAGE) return out;
+  }
+}
+// full sync: pull every own row, merge (union by id), push every local trade the server lacks
+function sbSync() {
+  if (!sb || !sbUser) return Promise.resolve();
+  if (sbBusy) { sbAgain = true; return sbBusy; }
+  syncChip("saving");
+  sbBusy = (async () => {
+    try {
+      if (localStorage.getItem(WIPE_KEY) === sbUser.id) {   // a Reset that could not reach the server yet
+        const { error } = await sb.from("trades").delete().eq("user_id", sbUser.id); if (error) throw error;
+        localStorage.removeItem(WIPE_KEY);
+      }
+      const rows = await sbFetchAll(), have = new Set(rows.map(r => r.id));
+      mergeIn(rows.map(r => r.data));
+      let fixed = false; for (const r of journal) if (!r.id) { r.id = oldId(r); fixed = true; }
+      if (fixed) save();
+      const missing = journal.filter(r => !have.has(r.id));
+      await sbUpsert(missing);
+      for (const id of have) sbPending.delete(id);
+      for (const r of missing) sbPending.delete(r.id);
+      keepPending(); syncChip("ok");
+    } catch (e) { console.warn("journal sync failed", e); syncChip("offline"); }
+    finally { sbBusy = null; if (sbAgain) { sbAgain = false; sbSync(); } }
+  })();
+  return sbBusy;
+}
+// after each trade: the trade is already in the browser; queue it, then send everything queued
+function sbPush(row) {
+  sbPending.add(row.id); keepPending();
+  return sbFlush();
+}
+async function sbFlush() {
+  if (!sb || !sbUser) { syncChip(); return; }
+  if (sbBusy) { sbAgain = true; return; }
+  const ids = [...sbPending], rows = journal.filter(r => ids.includes(r.id));
+  if (!rows.length) { syncChip("ok"); return; }
+  syncChip("saving");
+  try { await sbUpsert(rows); ids.forEach(id => sbPending.delete(id)); keepPending(); syncChip(sbPending.size ? "saving" : "ok"); if (sbPending.size) sbFlush(); }
+  catch (e) { console.warn("journal upload failed", e); syncChip("offline"); }
+}
+async function sbReset() {
+  sbPending.clear(); keepPending();
+  if (!sb || !sbUser) { syncChip(); return; }
+  try { localStorage.setItem(WIPE_KEY, sbUser.id); } catch (e) {}
+  sbSync();   // runs the delete first, then finds nothing to merge
+}
+function acctUi() {
+  $("bAcct").hidden = !!sbUser; $("acctMe").hidden = !sbUser;
+  $("acctEmail").textContent = sbUser ? sbUser.email : "";
+  if (sbUser) $("acctForm").hidden = true;
+  fit();
+}
+function acctMsg(t, bad) { $("acctMsg").innerHTML = t; $("acctMsg").className = bad ? "small neg" : "small"; }
+function sbInit() {
+  if (!window.supabase || !window.supabase.createClient) { syncChip(); acctMsg("Sync is unavailable right now (could not load the sign-in library). Trades are kept on this device.", true); return; }
+  sb = window.supabase.createClient(SB_URL, SB_KEY);
+  sb.auth.onAuthStateChange((ev, session) => {
+    const u = session && session.user, changed = (u && u.id) !== (sbUser && sbUser.id);
+    sbUser = u || null; acctUi();
+    if (!sbUser) { syncChip(); return; }
+    if (changed) setTimeout(sbSync, 0);   // never call the client inside its own auth callback
+  });
+  const h = location.hash + location.search;
+  if (/error_description=/.test(h)) { $("acctForm").hidden = false; acctMsg("That link did not work (it may have expired). Sign in, or create the account again.", true); fit(); }
+}
+$("bAcct").onclick = () => { $("acctForm").hidden = !$("acctForm").hidden; fit(); if (!$("acctForm").hidden) $("aEmail").focus(); };
+$("bAcctClose").onclick = () => { $("acctForm").hidden = true; fit(); };
+$("bShowPw").onclick = () => { const p = $("aPass"), show = p.type === "password"; p.type = show ? "text" : "password"; $("bShowPw").textContent = show ? "Hide" : "Show"; };
+function creds() {
+  const email = $("aEmail").value.trim(), password = $("aPass").value;
+  if (!/^\S+@\S+\.\S+$/.test(email)) { acctMsg("Type your email address.", true); return null; }
+  if (password.length < 6) { acctMsg("The password needs at least 6 characters.", true); return null; }
+  return { email, password };
+}
+$("acctForm").onsubmit = async ev => {
+  ev.preventDefault(); const c = creds(); if (!c) return;
+  if (!sb) { acctMsg("Sync is unavailable right now. Check your connection and reload.", true); return; }
+  acctMsg("Signing in…");
+  const { error } = await sb.auth.signInWithPassword(c);
+  if (error) acctMsg(/confirm/i.test(error.message) ? "Confirm your email first: open the link we sent you, then sign in here."
+    : /invalid/i.test(error.message) ? "Wrong email or password." : "Could not sign in: " + error.message, true);
+  else { $("aPass").value = ""; acctMsg("Signed in."); }
+};
+$("bSignUp").onclick = async () => {
+  const c = creds(); if (!c) return;
+  if (!sb) { acctMsg("Sync is unavailable right now. Check your connection and reload.", true); return; }
+  acctMsg("Creating your account…");
+  const { data, error } = await sb.auth.signUp({ ...c, options: { emailRedirectTo: SB_HOME } });
+  if (error) { acctMsg("Could not create the account: " + error.message, true); return; }
+  if (data && data.session) { acctMsg("Account created and signed in."); return; }
+  acctMsg(`Account created. <b>Check ${c.email}</b> and click the confirmation link, then sign in here.`);
+};
+$("bSignOut").onclick = async () => { if (sb) await sb.auth.signOut({ scope: "local" }); sbUser = null; acctUi(); syncChip(); };
+window.addEventListener("online", () => { if (sbUser) sbSync(); });
+syncChip();
+(() => { const el = document.createElement("script"); el.src = SB_LIB; el.async = true; el.onload = sbInit; el.onerror = sbInit; document.head.appendChild(el); })();
+
+// ---------- phone layout: the chart fills the screen above the action bar ----------
+const small = matchMedia("(max-width: 860px), (max-height: 500px)");
+function fit() {
+  if (!small.matches) { cv.style.height = ""; return; }
+  const box = $("chartbox"), other = box.offsetHeight - cv.offsetHeight, top = box.getBoundingClientRect().top + scrollY;
+  cv.style.height = Math.max(180, Math.floor(innerHeight - top - other - 6)) + "px";
+}
+addEventListener("resize", fit); small.addEventListener("change", fit);
+const fitObs = new ResizeObserver(() => fit());
+for (const el of [document.querySelector(".top"), document.querySelector(".tools"), $("ticket"), $("msg").parentNode, $("acctForm")]) fitObs.observe(el);
+if (cv.clientWidth && cv.clientWidth < 600) nBars = 70;   // fewer, wider candles on a phone
+$("iRisk").value = riskUsd;
+$("iRisk").oninput = () => { const v = parseFloat($("iRisk").value); if (v >= 0) { riskUsd = v; try { localStorage.setItem(RISK_KEY, String(v)); } catch (e) {} renderStats(); } };
 new ResizeObserver(() => draw()).observe(cv);
 const LIB = "trainer-lib/";
-setTF(16); renderStats();
+setTF(16); renderStats(); fit();
 fetch(LIB + "index.json").then(r => r.json()).then(list => { COINS = list; DATA = {}; newChart(); })
   .catch(() => say("Could not load the chart library. Reload the page to try again."));
 </script>
