@@ -35,8 +35,8 @@ Nothing is uploaded and there is no server - this repo is static hosting only.
 That also means the journal does not follow you between devices or browsers.
 Use **Export CSV** on one and **Import CSV** on the other.
 
-The Trainer's journal is different: sign in with email and password in the
-Trainer and its trades sync between devices through Supabase (each user can read
+The Trainer's journal is different: sign in with email and password on the
+login page (or press "Continue without signing in") and its trades sync between devices through Supabase (each user can read
 and write only their own rows). Signed out, it stays in this browser only. The
 page holds only Supabase's public publishable key.
 

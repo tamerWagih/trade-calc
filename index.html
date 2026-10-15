@@ -2,6 +2,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trade Calculator</title>
+<script>
+/* before the first paint: skip the login page when this browser already has a session or chose "continue without signing in" */
+try {
+  const k = "sb-zdxhzyhosvrivpbhsgct-auth-token";
+  if (!/type=recovery/.test(location.hash) && (localStorage.getItem(k) || sessionStorage.getItem(k) || sessionStorage.getItem("tc.guest") === "1"))
+    document.documentElement.classList.add("pass");
+} catch (e) {}
+</script>
 <style>
   :root {
     --bg:#12151c; --card:#1a1f2a; --sunk:#0d1016; --fg:#e6e9ef; --mute:#7d8799;
@@ -19,10 +27,12 @@
   nav::-webkit-scrollbar { display:none }
 
   /* login page (covers the site until signed in or "continue without signing in") */
-  #gate { position:fixed; inset:0; z-index:50; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto }
+  html.pass #gate { display:none }
+  #gate { position:fixed; inset:0; z-index:50; background:var(--bg); display:flex; padding:16px; overflow:auto }   /* margin:auto centres yet still scrolls on short screens */
+  #gate form, #gate #gWait { margin:auto }
   #gate form { width:100%; max-width:360px; background:var(--card); border-radius:10px; padding:22px; display:flex; flex-direction:column; gap:10px }
   #gate h1 { margin:0; font-size:20px }
-  #gate input[type=email], #gate input[type=password], #gate input[type=text] { font-size:16px; padding:10px; border:1px solid var(--line); border-radius:6px; background:var(--sunk); color:var(--fg); min-width:0 }
+  #gate input[type=email], #gate input[type=password], #gate input[type=text] { font-size:16px; padding:10px; border:1px solid var(--line); border-radius:6px; background:var(--sunk); color:var(--fg); min-width:0; text-align:left; font-family:"Segoe UI",system-ui,sans-serif }
   #gate .row { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap }
   #gate .pw { display:flex; gap:6px } #gate .pw input { flex:1 }
   #gate label { display:flex; gap:8px; align-items:center; font-size:14px; cursor:pointer }
@@ -161,7 +171,7 @@
     <button id="tabRisk"   aria-selected="false" onclick="show(2)">Losing run</button>
     <button id="tabGrowth" aria-selected="false" onclick="show(3)">Compounding</button>
     <button id="tabTrain"  aria-selected="false" onclick="show(4)">Trainer</button>
-    <span class="who" id="who" hidden><span id="whoEmail"></span><button id="bOut" type="button">Sign out</button></span>
+    <span class="who" id="who"><span id="whoEmail"></span><button id="bOut" type="button">Sign in</button></span>
   </nav>
 
   <!-- ---------- trade ---------- -->
@@ -737,15 +747,27 @@ const authStore = {
     tryStore(a, s => s.setItem(k, v)); tryStore(b, s => s.removeItem(k)); },
   removeItem: k => { tryStore(localStorage, s => s.removeItem(k)); tryStore(sessionStorage, s => s.removeItem(k)); },
 };
-let sbHome = null, recovering = false, gotState = false, authDone;
+const urlAuth = location.hash + location.search, fromLink = /access_token=|error_description=|[?&]code=/.test(urlAuth);
+let sbHome = null, recovering = /type=recovery/.test(urlAuth), gotState = false, authDone, signedIn = false;
 window.tcAuth = new Promise(r => { authDone = r; });   // the Trainer iframe waits on this for the shared client (or null)
 const gMsg = (t, bad, id = "gMsg") => { $(id).textContent = t; $(id).className = "msg" + (bad ? " bad" : ""); };
-function gateOn(on) { $("gate").hidden = !on; if (on) { $("gWait").hidden = true; $("gForm").hidden = recovering; $("gNew").hidden = !recovering; } }
-function account(user) { $("who").hidden = !user; $("whoEmail").textContent = user ? user.email : ""; }
+function gateOn(on) {
+  document.documentElement.classList.toggle("pass", !on); $("gate").hidden = !on;
+  if (on) { $("gWait").hidden = true; $("gForm").hidden = recovering; $("gNew").hidden = !recovering; }
+}
+function account(user) { signedIn = !!user; $("whoEmail").textContent = user ? user.email : ""; $("bOut").textContent = user ? "Sign out" : "Sign in"; }
+const passed = () => document.documentElement.classList.contains("pass");
+// first paint: a known session or guest goes straight in; a sign-in link waits for the client; otherwise the form
+$("gKeep").checked = keepOn();
+if (recovering) gateOn(true); else if (passed()) gateOn(false); else if (!fromLink) gateOn(true);
+function noLib() {   // CDN blocked or too slow: explain, and never leave anyone on "Loading…"
+  authDone(null);
+  if (!passed() || recovering) { recovering = false; gateOn(true); gMsg("Sign-in is unavailable right now (check your connection). You can continue without signing in.", true); }
+}
+const libTimer = setTimeout(() => { if (!sbHome) noLib(); }, 10000);
 function authStart() {
-  if (!window.supabase || !window.supabase.createClient) {
-    authDone(null); gateOn(!guest()); gMsg("Sign-in is unavailable right now (check your connection), or continue without signing in.", true); return;
-  }
+  clearTimeout(libTimer);
+  if (!window.supabase || !window.supabase.createClient) { noLib(); return; }
   sbHome = window.supabase.createClient(SB_URL, SB_KEY, { auth: { storage: authStore, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   authDone(sbHome);
   sbHome.auth.onAuthStateChange((ev, session) => {
@@ -754,8 +776,11 @@ function authStart() {
     const u = session && session.user; account(u || null);
     if (u && !recovering) gateOn(false); else if (!u) gateOn(!guest());
   });
-  setTimeout(() => { if (!gotState) gateOn(!guest()); }, 8000);   // never leave the user on "Loading…"
-  if (/error_description=/.test(location.hash + location.search)) gMsg("That link did not work (it may have expired). Sign in, or use Forgot password.", true);
+  setTimeout(() => { if (!gotState && !passed()) gateOn(true); }, 8000);   // never leave the user on "Loading…"
+  if (/error_description=/.test(urlAuth)) {
+    gMsg("That link did not work (it may have expired). Sign in, or use Forgot password.", true);
+    setTimeout(() => history.replaceState(null, "", location.pathname), 0);
+  }
 }
 function creds() {
   const email = $("gEmail").value.trim(), password = $("gPass").value;
@@ -793,12 +818,16 @@ $("gForgot").onclick = async () => {
 $("gNew").onsubmit = async ev => {
   ev.preventDefault(); const pw = $("gNewPw").value;
   if (pw.length < 8) { gMsg("The password needs at least 8 characters.", true, "gNewMsg"); return; }
+  if (!sbHome) { gMsg("Still connecting… try again in a moment.", true, "gNewMsg"); return; }
   const { error } = await sbHome.auth.updateUser({ password: pw });
   if (error) { gMsg("Could not save it: " + error.message, true, "gNewMsg"); return; }
   recovering = false; $("gNewPw").value = ""; gateOn(false);
 };
 $("gGuest").onclick = () => { tryStore(sessionStorage, s => s.setItem(GUEST, "1")); gateOn(false); };
-$("bOut").onclick = async () => { if (sbHome) await sbHome.auth.signOut({ scope: "local" }); tryStore(sessionStorage, s => s.removeItem(GUEST)); account(null); gateOn(true); };
+$("bOut").onclick = async () => {   // signed in: sign out; guest: back to the login page
+  if (signedIn && sbHome) await sbHome.auth.signOut({ scope: "local" });
+  tryStore(sessionStorage, s => s.removeItem(GUEST)); account(null); gMsg(""); $("gPass").value = ""; gateOn(true);
+};
 (() => { const el = document.createElement("script"); el.src = SB_LIB; el.async = true; el.onload = authStart; el.onerror = authStart; document.head.appendChild(el); })();
 
 const val = el => el.type === "checkbox" ? el.checked : el.value;
