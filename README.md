@@ -1,7 +1,7 @@
 # Trade Calculator
 
 A single-file position sizer and trade journal for USDT-M perpetual futures.
-No build step, no dependencies, no network calls - `index.html` is the whole thing.
+No build step - `index.html` is the calculator, `trainer.html` the chart trainer.
 
 **Live:** https://tamerwagih.github.io/trade-calc/
 
@@ -22,11 +22,11 @@ No build step, no dependencies, no network calls - `index.html` is the whole thi
 - **Compounding** - a fixed monthly percentage compounded over months or years,
   with an optional cap: above it the trading balance is held flat and the profit
   is banked instead of compounded.
-- **Playbook** - the manual setup drawn out: daily SMA 50 for direction, an old
-  unbroken TSR box on the 4H for the level, a 15m candle body closing out of the
-  box for the entry. Twelve checkable rules sit above the charts; the Trade tab
-  shows how many are ticked and the list clears itself when a result is logged.
-  The rule ticks are kept in `localStorage` like the other inputs.
+- **Trainer** - a chart replay trainer (`trainer.html`, loaded in the tab on first
+  open). Real 15m candles from `trainer-lib/`, coin and dates hidden. Draw levels,
+  step bar by bar, place a trade with a stop and target, and every result is
+  scored against a coin flip with the same stops. Built for phones as well as
+  desktop.
 
 ## Where the data lives
 
@@ -34,6 +34,11 @@ The journal is kept in the browser's `localStorage`, on the device you used.
 Nothing is uploaded and there is no server - this repo is static hosting only.
 That also means the journal does not follow you between devices or browsers.
 Use **Export CSV** on one and **Import CSV** on the other.
+
+The Trainer's journal is different: sign in with email and password in the
+Trainer and its trades sync between devices through Supabase (each user can read
+and write only their own rows). Signed out, it stays in this browser only. The
+page holds only Supabase's public publishable key.
 
 If the browser blocks storage (some do on `file://` pages), the Journal tab says
 so in orange and keeps the trades in memory until the tab closes, rather than
@@ -49,5 +54,4 @@ as a different site.
 
 The page runs its own assertions on load and logs `self-check ok` to the console.
 They cover the position maths against fees, the journal statistics, CSV quoting
-and round trips, the losing-run compounding, the compounding cap, and that the
-playbook rules only pass at 12 of 12 with all twelve charts drawn.
+and round trips, the losing-run compounding and the compounding cap.
