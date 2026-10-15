@@ -678,7 +678,7 @@ function show(i) {
     $(tab).ariaSelected = String(i === j);
   });
   if (i === 1) drawCurve();
-  if (i === 4 && !$("trainFrame").src) $("trainFrame").src = "trainer.html" + authReturn;
+  if (i === 4 && !$("trainFrame").src) $("trainFrame").src = "trainer.html?v=" + Date.now() + (authReturn.startsWith("?") ? "&" + authReturn.slice(1) : authReturn);   // ?v= skips a stale cached trainer
   document.querySelector("main").style.maxWidth = i === 4 ? "none" : "";   // the chart needs the full width
   document.body.classList.toggle("train", i === 4);
 }
