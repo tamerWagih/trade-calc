@@ -212,7 +212,7 @@ const FEE = 0.0005, MARGIN = 30, M15 = 900e3;
 const HOLD = { 1: 480, 4: 480, 16: 1920, 96: 5760 }, MAXHOLD = 5760, TFN = { 1: "15m", 4: "1H", 16: "4H", 96: "1D" };
 const $ = id => document.getElementById(id);
 const cv = $("cv"), ctx = cv.getContext("2d");
-let DATA = null, S = null, tfm = 4, nBars = 140, yMan = null, drag = null, dragging = false, tool = null, tool2 = null, pending = null, timer = null;
+let DATA = null, S = null, tfm = 4, nBars = 140, back = 0, yMan = null, drag = null, dragging = false, tool = null, tool2 = null, pending = null, timer = null;
 const HOST = "pages";   // build.py switches this to "artifact" for the claude.ai copy
 let journal = [];
 try { journal = JSON.parse(localStorage.getItem("levelDeskJournal") || "[]"); } catch (e) { journal = []; }
@@ -287,7 +287,7 @@ async function newChart() {
   const b = decode(sym);
   let t = 5200 + Math.floor(Math.random() * (b.C.length - 5200 - MAXHOLD - 400)); t = t - (t % 96) + 95;  // start at a day close, so every timeframe's last candle is complete
   S = { sym, b, k: DATA[sym].base * Math.exp((Math.random() - 0.5) * 3), t, start: t, lines: [], trade: null, done: false, dir: 0, sl: null, tp: null };
-  pending = null; yMan = null; tool = null; setTool(null); clearSide();
+  pending = null; yMan = null; back = 0; tool = null; setTool(null); clearSide();
   refresh(); hint();
 }
 
@@ -302,10 +302,12 @@ function draw() {
   if (!S) return;
   const b = S.b, m = tfm, V = Math.round(nBars), slots = V + MARGIN, axis = 70;
   const upto = S.trade ? S.trade.shown : S.t, lastJ = Math.floor(upto / m), nowJ = Math.floor(S.t / m);
-  const first = Math.max(0, nowJ - V + 1, lastJ - slots + 6);
+  // back = candles scrolled into history (fractional while a finger pans); the right edge never passes the latest shown candle
+  const B = back = Math.max(0, Math.min(back, lastJ - 5));
+  const first = Math.max(0, nowJ - B - V + 1, lastJ - B - slots + 6), endJ = Math.floor(lastJ - B);
   const pw = w - axis, ph = h - 26, sw = pw / slots;
   const bars = []; let hi = -Infinity, lo = Infinity;
-  for (let j = first; j <= lastJ; j++) { const k = candle(b, m, j, upto); bars.push(k); if (k.h > hi) hi = k.h; if (k.l < lo) lo = k.l; }
+  for (let j = Math.max(0, Math.floor(first)); j <= endJ; j++) { const k = candle(b, m, j, upto); k.j = j; bars.push(k); if (k.h > hi) hi = k.h; if (k.l < lo) lo = k.l; }
   for (const v of [S.sl, S.tp].filter(v => v != null)) { hi = Math.max(hi, v); lo = Math.min(lo, v); }
   const pad = (hi - lo) * 0.08; hi += pad; lo -= pad;
   if (yMan) { hi = yMan.mid + yMan.half; lo = yMan.mid - yMan.half; }
@@ -322,15 +324,15 @@ function draw() {
   // time labels (hidden coin, so show day count only: D1, D2 …)
   ctx.fillStyle = css("--muted");
   const lblEvery = Math.max(1, Math.ceil(70 / sw));
-  for (let j = first; j <= first + slots; j++) if ((j - first) % lblEvery === 0) {
+  for (let j = Math.floor(first); j <= first + slots; j++) if (j % lblEvery === 0) {
     const d = new Date(b.t0 + j * m * M15);
     ctx.fillText(m >= 16 ? `${d.getUTCDate()}/${d.getUTCMonth() + 1}` : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`, X(j * m) + 2, h - 10);
   }
   if (S.trade) { const x = X(S.t + 1); ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 20); ctx.stroke(); ctx.setLineDash([]); }
 
   const bw = Math.max(1, sw * 0.7), up = css("--up"), dn = css("--down");
-  bars.forEach((k, n) => {
-    const x = X((first + n + 0.5) * m), c = k.c >= k.o ? up : dn;
+  bars.forEach(k => {
+    const x = X((k.j + 0.5) * m), c = k.c >= k.o ? up : dn;
     ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x, Y(k.h)); ctx.lineTo(x, Y(k.l)); ctx.stroke();
     const yt = Y(Math.max(k.o, k.c)), yb = Y(Math.min(k.o, k.c));
@@ -356,12 +358,14 @@ function at(ev) {
   const r = cv.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
   return { x, y, t: (x / geo.sw + geo.first) * geo.m, p: geo.hi - (y - 8) / geo.ph * (geo.hi - geo.lo) };
 }
+function fitAll() { yMan = null; back = 0; draw(); }   // Fit button, double-click / double-tap on the price scale
 const manual = () => (yMan = yMan || { mid: (geo.hi + geo.lo) / 2, half: (geo.hi - geo.lo) / 2 });
 const zoomPrice = f => { if (geo) { manual().half *= f; draw(); } };
 const zoomTime = f => { nBars = Math.min(400, Math.max(25, nBars * f)); draw(); };
 const startPan = ev => { drag = { kind: "pan", y0: ev.clientY, mid0: manual().mid }; cv.setPointerCapture(ev.pointerId); };
 cv.addEventListener("pointerdown", ev => {
   if (!S || !geo) return;
+  if (ev.pointerType === "touch") { fingerDown(ev); return; }
   const q = at(ev), touch = ev.pointerType !== "mouse", grab = touch ? 24 : 14;
   if (S.dir && !S.trade && S.sl != null) {
     // grab the nearest of STOP / TARGET, also on its price label; fingers get a wider grab distance
@@ -384,6 +388,7 @@ cv.addEventListener("pointerdown", ev => {
 });
 cv.addEventListener("pointermove", ev => {
   if (!geo || !S) return;
+  if (ev.pointerType === "touch") { fingerMove(ev); return; }
   const q = at(ev);
   if (drag && drag.kind === "axis") { yMan.half = drag.half0 * Math.exp((ev.clientY - drag.y0) * 0.008); draw(); }
   else if (drag) { yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half; draw(); }
@@ -392,15 +397,86 @@ cv.addEventListener("pointermove", ev => {
   const near = S.dir && !S.trade && S.sl != null && (Math.abs(q.y - geo.Y(S.tp)) < 14 || Math.abs(q.y - geo.Y(S.sl)) < 14);
   cv.style.cursor = q.x > geo.pw || near || dragging ? "ns-resize" : drag ? "grabbing" : "crosshair";
 });
-const endDrag = () => { dragging = false; drag = null; };
+const endDrag = ev => { if (ev.pointerType === "touch") { fingerUp(ev); return; } dragging = false; drag = null; };
 cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
-cv.addEventListener("dblclick", ev => { if (geo && at(ev).x > geo.pw) { yMan = null; draw(); } });
+
+// ---------- touch: TradingView-style gestures ----------
+// one finger: drag STOP/TARGET when near them, otherwise pan (sideways = history, up/down = price); a tap places a
+// drawing point; two fingers: pinch on the chart = time zoom (horizontal spread), on the price scale = price zoom
+// (vertical spread); double-tap the price scale = fit. A second finger cancels whatever the first one started.
+const fingers = new Map();
+let pinch = null, tap = null, line0 = null, lastAxisTap = 0;
+const spanOf = () => { const [a, b] = [...fingers.values()]; return { dx: Math.abs(a.x - b.x), dy: Math.abs(a.y - b.y), d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2 }; };
+const panFrom = (x, y) => ({ kind: "tpan", x0: x, y0: y, back0: back, mid0: yMan ? yMan.mid : null });
+function fingerDown(ev) {
+  fingers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY }); cv.setPointerCapture(ev.pointerId);
+  if (fingers.size === 2) { startPinch(); return; }
+  if (fingers.size > 2) return;
+  const q = at(ev);
+  tap = { x: ev.clientX, y: ev.clientY, t: performance.now(), q, axis: q.x > geo.pw, moved: false, line: false };
+  if (S.dir && !S.trade && S.sl != null) {
+    const dT = Math.abs(q.y - geo.Y(S.tp)), dS = Math.abs(q.y - geo.Y(S.sl));
+    if (Math.min(dT, dS) < 24) {   // the line keeps its distance to the finger, so it does not jump on touch-down
+      manual(); line0 = { sl: S.sl, tp: S.tp }; dragging = dT < dS ? "tp" : "sl"; line0.off = (dragging === "tp" ? S.tp : S.sl) - q.p; tap.line = true; return;
+    }
+  }
+  drag = tap.axis ? { kind: "axis", y0: ev.clientY, half0: manual().half } : panFrom(ev.clientX, ev.clientY);
+}
+function startPinch() {
+  if (dragging && line0) { S.sl = line0.sl; S.tp = line0.tp; levels(); }   // the line goes back to where it was
+  const first = tap; dragging = false; drag = null; tap = null; line0 = null;
+  const sp = spanOf(), r = cv.getBoundingClientRect(), onAxis = (first && first.axis) || sp.mx - r.left > geo.pw;
+  pinch = onAxis ? { price: true, d0: Math.max(20, sp.dy), half0: manual().half }
+    : { price: false, wide: sp.dx >= 40, d0: Math.max(20, sp.dx >= 40 ? sp.dx : sp.d), n0: nBars };
+}
+function fingerMove(ev) {
+  const f = fingers.get(ev.pointerId); if (!f) return;
+  f.x = ev.clientX; f.y = ev.clientY;
+  if (pinch) {
+    if (fingers.size < 2) return;
+    const sp = spanOf();
+    if (pinch.price) yMan.half = pinch.half0 * pinch.d0 / Math.max(10, sp.dy);
+    else nBars = Math.min(400, Math.max(25, pinch.n0 * pinch.d0 / Math.max(10, pinch.wide ? sp.dx : sp.d)));
+    draw(); return;
+  }
+  if (tap && Math.hypot(ev.clientX - tap.x, ev.clientY - tap.y) > 10) tap.moved = true;
+  if (dragging && S.dir && !S.trade) { (dragging === "tp" ? setTarget : setStop)(at(ev).p + line0.off); return; }
+  if (!drag) return;
+  if (drag.kind === "axis") { yMan.half = drag.half0 * Math.exp((ev.clientY - drag.y0) * 0.008); draw(); return; }
+  back = Math.max(0, drag.back0 + (ev.clientX - drag.x0) / geo.sw);   // draw() caps it at the latest candle
+  if (drag.mid0 == null && Math.abs(ev.clientY - drag.y0) > 8) { drag.y0 = ev.clientY; drag.mid0 = manual().mid; }
+  if (drag.mid0 != null) yMan.mid = drag.mid0 + (ev.clientY - drag.y0) / geo.ph * 2 * yMan.half;
+  draw();
+}
+function fingerUp(ev) {
+  if (!fingers.delete(ev.pointerId)) return;
+  if (pinch) {   // lifting one finger of a pinch: the other one pans from where it is now, no jump
+    if (fingers.size === 1) { const [p] = fingers.values(); drag = panFrom(p.x, p.y); }
+    if (fingers.size < 2) pinch = null;
+    return;
+  }
+  if (fingers.size) return;
+  const t = tap; dragging = false; drag = null; tap = null; line0 = null;
+  if (ev.type !== "pointerup" || !t || t.moved || t.line || performance.now() - t.t > 500) return;
+  if (t.axis) { const now = performance.now(); if (now - lastAxisTap < 350) { lastAxisTap = 0; fitAll(); } else lastAxisTap = now; return; }
+  if (S.trade || S.dir) return;
+  const q = t.q;
+  if (tool === "h") { S.lines.push({ t: "h", p: q.p }); draw(); hint(); }
+  else if (tool === "t") {
+    if (!tool2) { tool2 = q; draw(); say("Now tap a second point to finish the trend line."); }
+    else if (Math.abs(q.t - tool2.t) > 0.5) { S.lines.push({ t: "t", t1: tool2.t, p1: tool2.p, t2: q.t, p2: q.p }); tool2 = null; draw(); hint(); }
+  }
+}
+// the page never scrolls or zooms from touches on the chart (iOS ignores parts of touch-action, so block it here too)
+for (const type of ["touchstart", "touchmove"]) cv.addEventListener(type, ev => ev.preventDefault(), { passive: false });
+cv.addEventListener("gesturestart", ev => ev.preventDefault());
+cv.addEventListener("dblclick", ev => { if (geo && ev.pointerType !== "touch" && at(ev).x > geo.pw) fitAll(); });
 cv.addEventListener("wheel", ev => { if (!geo) return; ev.preventDefault(); const f = Math.exp(ev.deltaY * 0.0012); at(ev).x > geo.pw ? zoomPrice(f) : zoomTime(f); }, { passive: false });
 function setTool(t) { tool = tool === t ? null : t; tool2 = null; $("bLevel").classList.toggle("on", tool === "h"); $("bTrend").classList.toggle("on", tool === "t"); }
 
 function chooseSide(d) {
   if (S.trade || S.done) return;
-  S.dir = S.dir === d ? 0 : d; S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
+  S.dir = S.dir === d ? 0 : d; back = 0; S.sl = null; S.tp = null; pending = null; tool = null; setTool(null);
   $("bLong").classList.toggle("on", S.dir === 1); $("bShort").classList.toggle("on", S.dir === -1);
   $("ticket").hidden = !S.dir; buttons(); fit();
   if (S.dir) { const e = entryPx(), a = atr(); S.tp = e + S.dir * 3 * a; setStop(e - S.dir * 1.5 * a); }
@@ -441,7 +517,7 @@ function placeTrade() {
   const flipRes = simulate(b, from, -S.dir, entry + S.dir * risk, entry - (tp - entry), hold);
   const you = netR(S.dir, entry, risk, res.px), other = netR(-S.dir, entry, risk, flipRes.px);
   S.trade = { entry, sl, tp, res, you, flip: (you + other) / 2, tag: "Auto", pos: +rangePos().toFixed(3), setup: setupOf(S.dir, rangePos()), withTrend: S.dir === bias(), shown: S.t, tf: TFN[tfm], days: hold / 96 };
-  pending = null; $("ticket").hidden = true; lock(true);
+  pending = null; back = 0; $("ticket").hidden = true; lock(true);
   say(`Trade running… entry ${fmt(P(entry))}, stop ${fmt(P(sl))}, target ${fmt(P(tp))}.`);
   timer = setInterval(() => { S.trade.shown = Math.min(S.trade.shown + Math.max(1, tfm / 2), res.i); draw(); if (S.trade.shown >= res.i) finish(); }, 110);
   buttons(); fit();
@@ -471,12 +547,12 @@ function wait(n) {
     if (exit + n * tfm > S.b.C.length - MAXHOLD - 2) { newChart(); return; }
     S.t = exit; S.trade = null; S.done = false; S.dir = 0; S.sl = S.tp = null; pending = null; clearSide();
   }
-  S.t = Math.min(Math.floor((S.t + 1) / tfm) * tfm + n * tfm - 1, S.b.C.length - MAXHOLD - 2);
+  S.t = Math.min(Math.floor((S.t + 1) / tfm) * tfm + n * tfm - 1, S.b.C.length - MAXHOLD - 2); back = 0;
   if (S.dir) chooseSide(S.dir);
   refresh(); hint();
 }
 function setTF(m) {
-  tfm = m; yMan = null;
+  tfm = m; yMan = null; back = 0;
   document.querySelectorAll("button.tf").forEach(x => x.classList.toggle("on", +x.dataset.m === m));
   if (S) refresh();
 }
@@ -588,7 +664,7 @@ $("bClear").onclick = () => { if (S) { S.lines = []; draw(); } };
 $("b1").onclick = () => wait(1); $("b6").onclick = () => wait(6); $("b24").onclick = () => wait(24);
 $("bZin").onclick = () => { zoomTime(0.8); if (yMan) zoomPrice(0.8); };
 $("bZout").onclick = () => { zoomTime(1.25); if (yMan) zoomPrice(1.25); };
-$("bFit").onclick = () => { yMan = null; draw(); };
+$("bFit").onclick = fitAll;
 $("bNew").onclick = () => { if (!S || !S.trade || S.done) newChart(); };
 $("bLong").onclick = () => chooseSide(1); $("bShort").onclick = () => chooseSide(-1);
 $("bStart").onclick = placeTrade;
