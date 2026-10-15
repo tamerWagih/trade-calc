@@ -138,7 +138,7 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
 </div>
 <form class="acctForm" id="acctForm" hidden autocomplete="on">
   <input id="aEmail" type="email" placeholder="Email" autocomplete="username" required aria-label="Email">
-  <span class="pw"><input id="aPass" type="password" placeholder="Password (6+ characters)" autocomplete="current-password" required minlength="6" aria-label="Password">
+  <span class="pw"><input id="aPass" type="password" placeholder="Password (8+ characters)" autocomplete="current-password" required minlength="8" aria-label="Password">
     <button type="button" id="bShowPw">Show</button></span>
   <button type="submit" class="primary" id="bSignIn">Sign in</button>
   <button type="button" id="bSignUp">Create account</button>
@@ -784,7 +784,7 @@ $("bShowPw").onclick = () => { const p = $("aPass"), show = p.type === "password
 function creds() {
   const email = $("aEmail").value.trim(), password = $("aPass").value;
   if (!/^\S+@\S+\.\S+$/.test(email)) { acctMsg("Type your email address.", true); return null; }
-  if (password.length < 6) { acctMsg("The password needs at least 6 characters.", true); return null; }
+  if (password.length < 8) { acctMsg("The password needs at least 8 characters.", true); return null; }
   return { email, password };
 }
 $("acctForm").onsubmit = async ev => {
