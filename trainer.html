@@ -7,7 +7,7 @@
 /* Layout: TradingView-like: one toolbar above a tall chart, scorecard on the right; stacks on phones */
 :root {
   --bg: #eef1f4; --panel: #ffffff; --line: #d5dbe2; --fg: #17202b; --muted: #5d6b7a;
-  --up: #0f8a6a; --down: #c8423b; --accent: #2d5fd8; --level: #b07a00; --trend: #7a4fd0;
+  --up: #26a69a; --down: #ef5350; --accent: #2d5fd8; --level: #b07a00; --trend: #7a4fd0;
   --grid: #e4e8ed; --chip: #e3e8ee;
   --f-display: "Archivo Narrow", "Arial Narrow", sans-serif;
   --f-body: "Archivo", system-ui, sans-serif;
@@ -15,11 +15,11 @@
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0e1319; --panel: #151c25; --line: #26313d; --fg: #e3e9ef; --muted: #8796a6;
-  --up: #2fbf94; --down: #ef6a5f; --accent: #6f98ff; --level: #e2b23c; --trend: #a98bf0;
+  --up: #26a69a; --down: #ef5350; --accent: #6f98ff; --level: #e2b23c; --trend: #a98bf0;
   --grid: #1c2530; --chip: #1f2934; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #0e1319; --panel: #151c25; --line: #26313d; --fg: #e3e9ef; --muted: #8796a6;
-  --up: #2fbf94; --down: #ef6a5f; --accent: #6f98ff; --level: #e2b23c; --trend: #a98bf0;
+  --up: #26a69a; --down: #ef5350; --accent: #6f98ff; --level: #e2b23c; --trend: #a98bf0;
   --grid: #1c2530; --chip: #1f2934; color-scheme: dark }
 [hidden] { display: none !important; }
   /* rows that scroll sideways fade out at the edge that has more, so nothing looks cut off */
@@ -32,6 +32,8 @@ button.tag.on { background: var(--accent); color: #fff; border-color: var(--acce
 .curve { position: relative; margin-top: 8px; }
 .curve svg { display: block; width: 100%; height: 70px; }
 .curve .tip { display: block; text-align: right; font: 500 11px var(--f-data); color: var(--muted); }
+.verdict.v-better { color: var(--up); font-weight: 600; } .verdict.v-worse { color: var(--down); font-weight: 600; } .verdict.v-same { color: #d9a400; font-weight: 600; }
+button#bEma.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .chip.warn { color: var(--down); }
 .keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .keys div { background: var(--chip); border-radius: 4px; padding: 5px 6px; }
@@ -144,7 +146,6 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
     <span id="acctMe" class="acct" hidden><span class="chip" id="acctEmail"></span><button id="bSignOut">Sign out</button></span>
   </span>
   <span class="chip" id="cSession">Today: 0 trades</span>
-  <span class="chip" id="cTrend">Big trend: …</span>
   <span class="chip" id="cAtr">ATR …</span>
   <span class="chip" id="cBars">Waited 0h</span>
   <span class="chip" id="cSave" hidden></span>
@@ -169,7 +170,7 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
       <button id="bUndo">Undo</button>
       <button id="bClear">Clear</button>
       <span class="sep"></span>
-      <button id="bZin" title="Zoom in">＋</button><button id="bZout" title="Zoom out">－</button><button id="bFit">Fit</button>
+      <button id="bZin" title="Zoom in">＋</button><button id="bZout" title="Zoom out">－</button><button id="bFit">Fit</button><button id="bEma" title="Show EMA 20 (orange) and EMA 50 (blue)">EMA</button>
     </div>
     <div class="bar actbar" id="actbar">
       <button id="b1" title="One bar of the timeframe you are viewing (key N)">Next bar ▸</button>
@@ -200,17 +201,13 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
         <label for="iCap">Start <input id="iCap" type="number" min="1" step="any" inputmode="decimal" value="1000"> USDT</label>
         <label for="iRiskV">Risk <input id="iRiskV" type="number" min="0" step="any" inputmode="decimal" value="1">
           <select id="sMode" aria-label="Risk type"><option value="pct">% of balance</option><option value="fixed">USDT per trade</option></select></label>
-        <button id="bNewAcct" title="Fresh starting capital from your next trade; the journal and R statistics are kept">Start a new account</button>
-        <button id="bAllTrades" hidden title="Count every trade in the journal from the starting capital">Count all my trades</button>
+        <button id="bNewAcct" title="Start a fresh scoreboard and balance from your next trade. Old trades are kept.">Start fresh (keeps old trades)</button>
+        <button id="bAllTrades" hidden title="Count every trade in the journal">Show all my trades</button>
       </div>
       <p class="small" id="acctNote" style="margin:2px 0 0"></p>
       <div class="keys" id="keyStats"></div>
       <div class="curve" id="curveBox"><div class="small">Your edge over the coin flip, last 20 trades. Above the line = beating chance.</div><span class="tip" id="curveTip"></span><svg id="curve" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Learning curve"></svg></div>
       <div class="verdict" id="verdict"></div>
-    </div>
-    <div class="card">
-      <h2>Details</h2>
-      <div class="stats" id="stats"></div>
     </div>
     <div class="card">
       <h2>Journal</h2>
@@ -219,7 +216,7 @@ th { font: 600 11px var(--f-body); color: var(--muted); }
         <button id="bFileNew" hidden title="Create a journal file; every trade is then written to it automatically">New journal file…</button>
         <button id="bFileOpen" hidden title="Connect an existing journal file and load its trades">Open journal file…</button>
         <button id="bExport" hidden>Export</button><button id="bImport" hidden>Import</button><input type="file" id="fImport" accept=".json" hidden>
-        <button id="bCopy">Copy journal</button><button id="bReset">Reset</button></div>
+        <button id="bCopy">Copy journal</button></div>
       <p class="small" id="fileNote" hidden></p>
     </div>
   </aside>
@@ -233,7 +230,8 @@ const FEE = 0.0005, OFFSET = 5, M15 = 900e3;   // OFFSET: empty candle slots rig
 const HOLD = { 1: 480, 4: 480, 16: 1920, 96: 5760 }, MAXHOLD = 5760, TFN = { 1: "15m", 4: "1H", 16: "4H", 96: "1D" };
 const $ = id => document.getElementById(id);
 const cv = $("cv"), ctx = cv.getContext("2d");
-let DATA = null, S = null, tfm = 4, nBars = 140, back = 0, yMan = null, drag = null, dragging = false, tool = null, tool2 = null, pending = null, timer = null;
+let emaOn = false; try { emaOn = localStorage.getItem("levelDeskEma") === "1"; } catch (e) {}
+let DATA = null, S = null, tfm = 4, nBars = 80, back = 0, yMan = null, drag = null, dragging = false, tool = null, tool2 = null, pending = null, timer = null;
 const HOST = "pages";   // build.py switches this to "artifact" for the claude.ai copy
 let journal = [];
 try { journal = JSON.parse(localStorage.getItem("levelDeskJournal") || "[]"); } catch (e) { journal = []; }
@@ -338,7 +336,7 @@ function draw() {
   if (yMan) { hi = yMan.mid + yMan.half; lo = yMan.mid - yMan.half; }
   // the price scale is as wide as its widest label (grid prices, the live price, STOP/TARGET tags), so nothing is cut
   ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.textBaseline = "middle";
-  const step = niceStep((hi - lo) * S.k / 8), grid = [];
+  const step = niceStep((hi - lo) * S.k / 5), grid = [];
   for (let p = Math.ceil(lo * S.k / step) * step; p < hi * S.k; p += step) grid.push(p);
   const axis = Math.ceil(Math.max(50, ...[...grid.map(fmt), fmt(P(b.C[S.t])), "TARGET"].map(t => ctx.measureText(t).width)) + 12);
   const pw = w - axis, ph = h - 26, sw = pw / slots;
@@ -349,12 +347,12 @@ function draw() {
 
   for (const p of grid) {
     const y = Y(p / S.k); ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke();
+    ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(pw, y); ctx.stroke(); ctx.globalAlpha = 1;
     if (y > 6 && y < h - 20) { ctx.fillStyle = css("--muted"); ctx.fillText(fmt(p), pw + 6, y); }   // clear of the time row
   }
   // time labels (hidden coin, so show day count only: D1, D2 …)
   ctx.fillStyle = css("--muted");
-  const lblEvery = Math.max(1, Math.ceil(70 / sw));
+  const lblEvery = Math.max(1, Math.ceil(90 / sw));
   for (let j = Math.floor(first); j <= first + slots; j++) if (j % lblEvery === 0) {
     const d = new Date(b.t0 + j * m * M15);
     const lbl = m >= 16 ? `${d.getUTCDate()}/${d.getUTCMonth() + 1}` : `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
@@ -363,7 +361,7 @@ function draw() {
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, pw, h); ctx.clip();   // candles and drawings stop at the price scale
   if (S.trade) { const x = X(S.t + 1); ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 20); ctx.stroke(); ctx.setLineDash([]); }
 
-  const bw = Math.max(1, sw * 0.7), up = css("--up"), dn = css("--down");
+  const bw = Math.max(1, Math.min(sw * 0.8, sw - 2)), up = css("--up"), dn = css("--down");
   bars.forEach(k => {
     const x = X((k.j + 0.5) * m), c = k.c >= k.o ? up : dn;
     ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 1;
@@ -371,6 +369,20 @@ function draw() {
     const yt = Y(Math.max(k.o, k.c)), yb = Y(Math.min(k.o, k.c));
     ctx.fillRect(x - bw / 2, yt, bw, Math.max(1, yb - yt));
   });
+  if (emaOn && bars.length) {
+    const j0 = Math.max(0, bars[0].j - 250), jN = bars[bars.length - 1].j, closes = [];
+    for (let j = j0; j <= jN; j++) closes.push(candle(b, m, j, upto).c);   // upto caps the forming candle
+    for (const [len, col] of [[20, "#ff9800"], [50, "#2962ff"]]) {
+      const k = 2 / (len + 1); let e = 0, started = false;
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.beginPath();
+      closes.forEach((c, i) => {
+        e = i ? c * k + e * (1 - k) : c;
+        const j = j0 + i; if (j < bars[0].j || (j0 === 0 && i < len)) return;
+        const x = X((j + 0.5) * m), y = Y(e); if (started) ctx.lineTo(x, y); else { ctx.moveTo(x, y); started = true; }
+      });
+      ctx.stroke();
+    }
+  }
   ctx.lineWidth = 1.6;
   for (const l of S.lines) {
     if (l.t === "h") { ctx.strokeStyle = css("--level"); ctx.beginPath(); ctx.moveTo(0, Y(l.p)); ctx.lineTo(pw, Y(l.p)); ctx.stroke(); }
@@ -615,8 +627,6 @@ function setTF(m) {
 }
 function refresh() {
   const bz = bias();
-  $("cTrend").textContent = `Big trend (50-day avg): ${bz > 0 ? "UP, buys only" : "DOWN, sells only"}`;
-  $("cTrend").className = "chip " + (bz > 0 ? "up" : "down");
   $("cAtr").textContent = `1H ATR ${fmt(P(atr()))}`;
   $("cBars").textContent = `Waited ${((S.t - S.start) / 4).toFixed(S.t % 4 === 3 ? 0 : 2)}h`;
   draw();
@@ -641,7 +651,7 @@ const lastId = () => journal.length ? String(journal[journal.length - 1].id) : "
 const acctDefault = () => ({ cap: 1000, mode: "pct", pct: 1, fixed: 10, from: "all", startAfterId: "", startedAt: 0, updatedAt: 0 });
 // in the account: made after it started (time) and after its starting trade (id). The time rule keeps older history
 // out even when another device's history arrives later through sync.
-const inAcct = (r, a) => a.from !== "start" || (String(r.id) > a.startAfterId && (r.played || 0) > (a.startedAt || 0));   // missing "from" = all trades
+const inAcct = (r, a) => a.from !== "start" || (r.played || 0) > (a.startedAt || 0);   // missing "from" = all trades; fresh start = trades played after it
 const acctRows = (a = acct) => a ? journal.filter(r => inAcct(r, a)) : [];
 // the trades before the account started, replayed with the account's capital and risk (a "what if", changes nothing)
 function learnLine(a = acct) {
@@ -688,8 +698,8 @@ function acctUiSet() {
   if (document.activeElement !== $("iRiskV")) $("iRiskV").value = acct.mode === "fixed" ? acct.fixed : acct.pct;
   $("sMode").value = acct.mode;
   const n = acctRows().length, d = new Date(acct.startedAt || Date.now());
-  $("acctNote").textContent = acct.from !== "start" ? `Counting all your ${n} trade${n === 1 ? "" : "s"} from ${money(acct.cap)} USDT.`
-    : `Account started ${d.toLocaleDateString()} · ${n} trade${n === 1 ? "" : "s"} in it. Earlier trades count in R only.`;
+  $("acctNote").textContent = acct.from !== "start" ? `Showing all your ${n} trade${n === 1 ? "" : "s"} from ${money(acct.cap)} USDT.`
+    : `Fresh start ${d.toLocaleDateString()} · ${n} trade${n === 1 ? "" : "s"} since. Older trades are kept, not counted here.`;
   $("bAllTrades").hidden = acct.from !== "start";
 }
 function acctEdit() {
@@ -715,37 +725,32 @@ const TEST_FROM = 444, TEST_N = 100;   // confirmation test: trades 444-543, jud
 const sg = v => `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}R</span>`;
 const sgu = v => `<span class="${v >= 0 ? "pos" : "neg"}">${usd(v)}</span>`;
 const pct = v => `<small class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}%</small>`;
+// trades on the scoreboard: since the last "Start fresh" (all trades when the user chose "Show all my trades")
+const board = () => acct ? acctRows() : journal;
+function verdictOf(rows) {
+  const e = edgeOf(rows);
+  if (!e || e.n < 50) return { cls: "", text: `Too early: ${rows.length}/50 trades for a verdict` };
+  if (e.lo > 0) return { cls: "v-better", text: "BETTER than a coin flip", e };
+  if (e.hi < 0) return { cls: "v-worse", text: "WORSE than a coin flip", e };
+  return { cls: "v-same", text: "SAME as a coin flip (luck can't be ruled out)", e };
+}
 function renderStats() {
-  const a = agg(journal);
+  const rows = board(), a = agg(rows);
   const m = acct ? acctStats() : null;
   const moneyKeys = m ? `<div><b>${money(m.bal)}</b><span>Balance (USDT)</span></div><div><b>${sgu(m.pl)}</b>${pct(m.plPct)}<span>Profit / loss</span></div>`
       + `<div><b class="${m.dd > 0 ? "neg" : ""}">${m.dd > 0 ? "-" : ""}${money(m.dd)}</b><small class="${m.dd > 0 ? "neg" : ""}">${m.dd > 0 ? "-" : ""}${m.ddPct.toFixed(2)}%</small><span>Biggest drop</span></div>`
     : `<div><b>–</b><span>Balance (USDT)</span></div><div><b>–</b><span>Profit / loss</span></div><div><b>–</b><span>Biggest drop</span></div>`;
   const key = (n, w, totR, e) => moneyKeys + `<div><b>${n}</b><span>Trades</span></div><div><b>${w}</b><span>Win rate</span></div><div><b>${e}</b><span>Edge vs flip</span></div>`;
-  if (!a) { $("keyStats").innerHTML = key(0, "–", "–", "–"); $("stats").innerHTML = ""; $("verdict").textContent = "The scorecard compares you to a coin flip with the same stop and target, so luck can't fool you."; renderJournal(); renderCurve(); session(); return; }
-  const e = edgeOf(journal), last = edgeOf(journal.slice(-100));
+  if (!a) { $("keyStats").innerHTML = key(0, "–", "–", "–"); $("verdict").className = "verdict"; $("verdict").textContent = "Too early: 0/50 trades for a verdict. You are compared with a coin flip using the same stops, so luck can't fool you."; renderJournal(); renderCurve(); session(); return; }
+  const e = edgeOf(rows), v = verdictOf(rows);
   $("keyStats").innerHTML = key(a.n, (a.win * 100).toFixed(0) + "%", sg(a.tot), sg(e.edge));
-  const test = journal.slice(TEST_FROM - 1, TEST_FROM - 1 + TEST_N), te = test.length === TEST_N ? edgeOf(test) : null;
-  const rows = [
-    ["Average per trade", sg(a.you)],
-    ["Total", sg(a.tot)],
-    ...(m && m.n ? [[`Average per trade in this account (${m.n})`, sgu(m.avg)], ["Risk on the next trade", `${money(m.risk)} USDT`]] : []),
-    ...(acct && learnLine() ? [learnLine()] : []),
-    ["Coin flip with the same stops", sg(a.flip)],
-    ["Your edge over the coin flip", `${sg(e.edge)}<small>luck range ${a.n > 1 ? `${sg(e.lo)} to ${sg(e.hi)}` : "…"}</small>`],
-    [`Last ${last.n} trades edge`, sg(last.edge)],
-    [`Confirmation test: trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1}`, `${test.length}/${TEST_N} done`],
-  ];
-  $("stats").innerHTML = rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("");
-  $("verdict").innerHTML = !te ? `Confirmation test: trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1}: <b>${test.length}/${TEST_N} done</b>. No verdict until all ${TEST_N} are done.`
-    : te.lo > 0 ? `<b class="pos">Confirmation test passed: on trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1} you beat the coin flip by ${te.edge.toFixed(2)}R per trade, and the whole luck range (${te.lo.toFixed(2)} to ${te.hi.toFixed(2)}R) is above zero.</b>`
-    : te.hi < 0 ? `<b class="neg">Confirmation test failed: on trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1} you did worse than the coin flip (${te.edge.toFixed(2)}R per trade), and it's not bad luck.</b>`
-    : `<b>Confirmation test not proven:</b> on trades ${TEST_FROM}-${TEST_FROM + TEST_N - 1} your edge was ${sg(te.edge)} per trade, but the luck range (${sg(te.lo)} to ${sg(te.hi)}) includes zero.`;
+  $("verdict").className = "verdict " + v.cls;
+  $("verdict").innerHTML = `${v.text}<br><small>Your edge: ${sg(e.edge)} per trade vs a coin flip with the same stops.</small>`;
   renderJournal(); renderCurve(); session();
 }
 // rolling 20-trade average of (you - coin flip), one point per trade from trade 20 on
 function renderCurve() {
-  const W = 20, ed = journal.map(r => r.you - r.flip);
+  const W = 20, ed = board().map(r => r.you - r.flip);
   if (ed.length < W) { $("curve").innerHTML = ""; $("curveTip").textContent = `graph starts after ${W} trades (${ed.length} so far)`; return; }
   const pts = []; let s = ed.slice(0, W).reduce((x, y) => x + y, 0); pts.push(s / W);
   for (let i = W; i < ed.length; i++) { s += ed[i] - ed[i - W]; pts.push(s / W); }
@@ -769,17 +774,9 @@ function session() {
 }
 function renderJournal() {
   const per = acct ? acctStats().per : new Map();
-  $("jt").innerHTML = journal.slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${String(r.date).slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${sg(r.you)}</td><td>${per.has(r.id) ? sgu(per.get(r.id).m).replace(" USDT", "") : "–"}</td><td>${sg(r.flip)}</td></tr>`).join("")
+  $("jt").innerHTML = board().slice(-12).reverse().map(r => `<tr><td>${r.coin}</td><td>${String(r.date).slice(0, 10)}</td><td>${r.tf || "1H"}</td><td>${r.side}</td><td>${sg(r.you)}</td><td>${per.has(r.id) ? sgu(per.get(r.id).m).replace(" USDT", "") : "–"}</td><td>${sg(r.flip)}</td></tr>`).join("")
     || `<tr><td colspan="7" class="small">Your trades will appear here.</td></tr>`;
 }
-let resetArmed = false;
-$("bReset").onclick = () => {
-  if (!resetArmed) { resetArmed = true; $("bReset").textContent = "Click again to erase"; setTimeout(() => { resetArmed = false; $("bReset").textContent = "Reset"; }, 3000); return; }
-  const old = journal; journal = []; save(); renderStats(); resetArmed = false; $("bReset").textContent = "Reset";
-  sbReset();
-  if (DB) (async () => { for (const r of old) if (r.id) { try { await DB.collection("trades").doc(r.id).delete(); } catch (e) {} } })();
-  fileSave();
-};
 $("bCopy").onclick = () => {
   const csv = ["coin,date,tf,side,setup,target_R,with_trend,exit,you_R,coinflip_R", ...journal.map(r => [r.coin, r.date, r.tf || "1H", r.side, r.tag, r.r, r.withTrend, r.how, r.you, r.flip].join(","))].join("\n");
   navigator.clipboard.writeText(csv).then(() => say("Journal copied. Paste it to Claude for a review."), () => say("Copy was blocked here. Your journal is still saved in this browser."));
@@ -794,6 +791,8 @@ $("bClear").onclick = () => { if (S) { S.lines = []; draw(); } };
 $("b1").onclick = () => wait(1); $("b6").onclick = () => wait(6); $("b24").onclick = () => wait(24);
 $("bZin").onclick = () => { zoomTime(0.8); if (yMan) zoomPrice(0.8); };
 $("bZout").onclick = () => { zoomTime(1.25); if (yMan) zoomPrice(1.25); };
+$("bEma").onclick = () => { emaOn = !emaOn; try { localStorage.setItem("levelDeskEma", emaOn ? "1" : "0"); } catch (e) {} $("bEma").classList.toggle("on", emaOn); draw(); };
+$("bEma").classList.toggle("on", emaOn);
 $("bFit").onclick = fitAll;
 $("bNew").onclick = () => { if (!S || !S.trade || S.done) newChart(); };
 $("bLong").onclick = () => chooseSide(1); $("bShort").onclick = () => chooseSide(-1);
@@ -927,10 +926,7 @@ function sbSync() {
   syncChip("saving");
   sbBusy = (async () => {
     try {
-      if (localStorage.getItem(WIPE_KEY) === sbUser.id) {   // a Reset that could not reach the server yet
-        const { error } = await sb.from("trades").delete().eq("user_id", sbUser.id); if (error) throw error;
-        localStorage.removeItem(WIPE_KEY);
-      }
+      try { localStorage.removeItem(WIPE_KEY); } catch (e) {}   // old wipe requests are ignored: trades are never deleted
       const rows = await sbFetchAll(), have = new Set(rows.map(r => r.id));
       mergeIn(rows.map(r => r.data));
       let fixed = false; for (const r of journal) if (!r.id) { r.id = oldId(r); fixed = true; }
@@ -959,12 +955,6 @@ async function sbFlush() {
   syncChip("saving");
   try { await sbUpsert(rows); ids.forEach(id => sbPending.delete(id)); keepPending(); syncChip(sbPending.size ? "saving" : "ok"); if (sbPending.size) sbFlush(); }
   catch (e) { console.warn("journal upload failed", e); syncChip("offline"); }
-}
-async function sbReset() {
-  sbPending.clear(); keepPending();
-  if (!sb || !sbUser) { syncChip(); return; }
-  try { localStorage.setItem(WIPE_KEY, sbUser.id); } catch (e) {}
-  sbSync();   // runs the delete first, then finds nothing to merge
 }
 function acctUi() {
   $("bAcct").hidden = !!sbUser; $("acctMe").hidden = !sbUser;
@@ -1039,8 +1029,8 @@ let newAcctArmed = false;
 $("bNewAcct").onclick = () => {
   if (!acct) return;
   const cap = parseFloat($("iCap").value) > 0 ? parseFloat($("iCap").value) : acct.cap;
-  if (!newAcctArmed) { newAcctArmed = true; $("bNewAcct").textContent = `Tap again: new ${money(cap)} USDT account`; setTimeout(() => { newAcctArmed = false; $("bNewAcct").textContent = "Start a new account"; }, 3000); return; }
-  newAcctArmed = false; $("bNewAcct").textContent = "Start a new account";
+  if (!newAcctArmed) { newAcctArmed = true; $("bNewAcct").textContent = "Tap again to start fresh"; setTimeout(() => { newAcctArmed = false; $("bNewAcct").textContent = "Start fresh (keeps old trades)"; }, 3000); return; }
+  newAcctArmed = false; $("bNewAcct").textContent = "Start fresh (keeps old trades)";
   acct = { ...acct, cap, from: "start", startAfterId: lastId(), startedAt: Date.now(), updatedAt: Date.now() }; acctSave();
 };
 $("bAllTrades").onclick = () => { if (!acct) return; acct = { ...acct, from: "all", updatedAt: Date.now() }; acctSave(); };
