@@ -1,0 +1,147 @@
+//@version=6
+// Trend Ensemble Signals (long-only). Built for the 4h chart, also works on 1D.
+// 9 Donchian breakout models vote. Each model goes long when the close breaks its N-bar high
+// and goes flat when the close falls below the middle of its channel. Score = models long (0-9).
+// BUY  : score >= Enter level and BTC score >= BTC level.
+// EXIT : score < Exit level, or BTC score drops below BTC level.
+// Spot mode   : 100% of equity, exits only on the EXIT signal.
+// Futures mode: risk % sizing, SL = trailing ATR stop (only tightens), optional R:R take profit.
+strategy("Trend Ensemble Signals",
+         overlay                 = true,
+         initial_capital         = 1000,
+         default_qty_type        = strategy.fixed,
+         process_orders_on_close = true,
+         commission_type         = strategy.commission.percent,
+         commission_value        = 0.05,
+         slippage                = 0,
+         margin_long             = 0,
+         margin_short            = 0,
+         max_labels_count        = 500)
+
+// ───────────────── Inputs ─────────────────
+string grpE = "Trend Ensemble"
+int lb1 = input.int(5,   "Lookback 1", minval = 2, group = grpE, inline = "a")
+int lb2 = input.int(10,  "2",          minval = 2, group = grpE, inline = "a")
+int lb3 = input.int(20,  "3",          minval = 2, group = grpE, inline = "a")
+int lb4 = input.int(30,  "Lookback 4", minval = 2, group = grpE, inline = "b")
+int lb5 = input.int(60,  "5",          minval = 2, group = grpE, inline = "b")
+int lb6 = input.int(90,  "6",          minval = 2, group = grpE, inline = "b")
+int lb7 = input.int(150, "Lookback 7", minval = 2, group = grpE, inline = "c")
+int lb8 = input.int(250, "8",          minval = 2, group = grpE, inline = "c")
+int lb9 = input.int(360, "9",          minval = 2, group = grpE, inline = "c")
+int enterMin  = input.int(5, "BUY when score >= ", minval = 1, maxval = 9, group = grpE)
+int exitBelow = input.int(3, "EXIT when score < ", minval = 1, maxval = 9, group = grpE)
+
+string grpB = "BTC Filter"
+bool   useBtc = input.bool(true, "Only trade while BTC is trending up", group = grpB)
+string btcSym = input.symbol("BINANCE:BTCUSDT", "BTC symbol", group = grpB)
+int    btcMin = input.int(5, "BTC score needed (of 9)", minval = 1, maxval = 9, group = grpB)
+
+string grpT = "Trade Management"
+string tradeMode  = input.string("Spot", "Mode", options = ["Spot", "Futures"], group = grpT, tooltip = "Spot: full equity, exits on the EXIT signal only. Futures: risk-based size with a trailing ATR stop loss.")
+float  spotPct    = input.float(100, "Spot: % of equity per trade", minval = 1, maxval = 100, group = grpT)
+float  riskPct    = input.float(1.0, "Futures: risk % of equity", minval = 0.1, maxval = 10, step = 0.1, group = grpT)
+int    atrLen     = input.int(14, "Futures: ATR length", minval = 1, group = grpT)
+float  atrMult    = input.float(5.0, "Futures: SL = ATR x", minval = 0.5, step = 0.5, group = grpT, tooltip = "Trailing stop: highest of (close - ATR x) since entry. Only tightens.")
+string exitMode   = input.string("No TP - ride to EXIT or SL", "Futures: exit mode", options = ["No TP - ride to EXIT or SL", "R:R Take Profit"], group = grpT)
+float  tpRR       = input.float(3.0, "Futures: TP factor (R:R)", minval = 0.1, step = 0.1, group = grpT)
+
+startDate     = input.time(timestamp("2021-01-01 00:00 +0000"), "Start Date")
+endDate       = input.time(timestamp("2030-12-31 23:59 +0000"), "End Date")
+isInDateRange = time >= startDate and time <= endDate
+
+bool showLabels = input.bool(true, "Show signal labels", group = "Display")
+bool showSLTP   = input.bool(true, "Show SL / TP lines (futures, active trade only)", group = "Display")
+
+bool isFut  = tradeMode == "Futures"
+bool useTP  = isFut and exitMode == "R:R Take Profit"
+
+// ───────────────── Ensemble score ─────────────────
+f_model(int n) =>
+    var int state = 0
+    float up  = ta.highest(high, n)[1]
+    float dn  = ta.lowest(low, n)[1]
+    float mid = (up + dn) / 2
+    if not na(up)
+        state := close > up ? 1 : close < mid ? 0 : state
+    state
+
+f_score() =>
+    f_model(lb1) + f_model(lb2) + f_model(lb3) + f_model(lb4) + f_model(lb5) + f_model(lb6) + f_model(lb7) + f_model(lb8) + f_model(lb9)
+
+int  score    = f_score()
+int  btcScore = request.security(btcSym, timeframe.period, f_score(), lookahead = barmerge.lookahead_off)
+bool btcOn    = not useBtc or (not na(btcScore) and btcScore >= btcMin)
+float atr     = ta.atr(atrLen)
+
+// ───────────────── Signals ─────────────────
+bool inPos      = strategy.position_size > 0
+int  nClosed    = strategy.closedtrades
+bool exitedNow  = nClosed > 0 and strategy.closedtrades.exit_bar_index(nClosed - 1) == bar_index
+bool goLong     = not inPos and not exitedNow and isInDateRange and score >= enterMin and btcOn and not na(atr)
+bool exitSignal = inPos and (score < exitBelow or not btcOn)
+
+var float longSL = na
+var float longTP = na
+
+// ───────────── ENTRY ─────────────
+if goLong
+    float stopPrice = close - atrMult * atr
+    float stopDist  = close - stopPrice
+    float qty       = isFut ? strategy.equity * (riskPct / 100) / stopDist : strategy.equity * (spotPct / 100) / close
+    float amount    = qty * close
+    float riskCash  = strategy.equity * (riskPct / 100)
+    int   lev       = math.ceil(amount / strategy.equity)
+    longSL := isFut ? stopPrice : na
+    longTP := useTP ? close + stopDist * tpRR : na
+    strategy.entry("Long", strategy.long, qty = qty)
+    if isFut
+        strategy.exit("Exit Long", from_entry = "Long", stop = longSL, limit = longTP, comment_loss = "SL", comment_profit = "TP")
+    if showLabels
+        string txt = isFut ? "LONG\n$" + str.tostring(amount, "#") + " " + str.tostring(lev) + "× R:$" + str.tostring(riskCash, "#.#") : "BUY"
+        label.new(bar_index, na, txt, yloc = yloc.belowbar, style = label.style_label_up, color = color.new(color.green, 30), textcolor = color.white, size = size.normal)
+    alert("🟢 " + (isFut ? "LONG" : "BUY") + " - " + syminfo.ticker + "\n" +
+      "📊 Timeframe: " + timeframe.period + "\n" +
+      "💰 Entry: " + str.tostring(close, format.mintick) + "\n" +
+      "📈 Score: " + str.tostring(score) + "/9 | BTC: " + str.tostring(btcScore) + "/9\n" +
+      (isFut ? "🛑 Stop Loss: " + str.tostring(longSL, format.mintick) + " (" + str.tostring(stopDist / close * 100, "#.##") + "%)\n" : "") +
+      (useTP ? "✅ Take Profit: " + str.tostring(longTP, format.mintick) + " (R:R 1:" + str.tostring(tpRR, "#.#") + ")\n" : "") +
+      "💵 Position: $" + str.tostring(amount, "#.##") + " USDT" + (isFut ? " (" + str.tostring(lev) + "x) | ⚠️ Risk: $" + str.tostring(riskCash, "#.##") : ""), alert.freq_once_per_bar_close)
+
+// ───────────── EXIT on signal ─────────────
+if exitSignal
+    strategy.close("Long", comment = "Signal")
+
+// ───────────── Trailing ATR stop (futures, only tightens) ─────────────
+if isFut and inPos and not exitSignal and not na(longSL)
+    float newSL = close - atrMult * atr
+    if newSL > longSL
+        longSL := newSL
+        strategy.exit("Exit Long", from_entry = "Long", stop = longSL, limit = longTP, comment_loss = "SL", comment_profit = "TP")
+
+// ───────────── Exit labels (signal, SL or TP), placed on the bar the trade closed ─────────────
+var int labeled = 0
+if nClosed > labeled
+    int   k      = nClosed - 1
+    float pnlPct = (strategy.closedtrades.exit_price(k) / strategy.closedtrades.entry_price(k) - 1) * 100
+    string why   = strategy.closedtrades.exit_comment(k)
+    string tag   = why == "SL" ? "SL" : why == "TP" ? "TP" : "EXIT"
+    if showLabels
+        label.new(strategy.closedtrades.exit_bar_index(k), na, tag + "\n" + (pnlPct >= 0 ? "+" : "") + str.tostring(pnlPct, "#.##") + "%",
+          yloc = yloc.abovebar, style = label.style_label_down,
+          color = color.new(pnlPct >= 0 ? color.teal : color.red, 30), textcolor = color.white, size = size.normal)
+    alert("⚠️ " + tag + " - " + syminfo.ticker + "\n📊 " + timeframe.period + "\n💰 Exit: " + str.tostring(strategy.closedtrades.exit_price(k), format.mintick) +
+      " (" + str.tostring(pnlPct, "#.##") + "%)", alert.freq_once_per_bar_close)
+    labeled := nClosed
+
+if not inPos and not goLong
+    longSL := na
+    longTP := na
+
+// ───────────── SL / TP lines (futures, active trade only) ─────────────
+plot(showSLTP and isFut and (inPos or goLong) ? longSL : na, "Long SL", color.red,   2, plot.style_linebr)
+plot(showSLTP and useTP and (inPos or goLong) ? longTP : na, "Long TP", color.green, 2, plot.style_linebr)
+
+// Values for the Data Window only (nothing drawn on the chart)
+plot(score,    "Coin score (of 9)", display = display.data_window)
+plot(btcScore, "BTC score (of 9)",  display = display.data_window)
