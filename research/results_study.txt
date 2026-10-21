@@ -1,0 +1,35 @@
+== baseline
+buy&hold equal-weight                      IS 21-23: ann   30.4%  sharpe  0.34 | OOS 24-26: ann   -4.9%  sharpe -0.07  turnover/yr 0x
+== 1. cross-sectional momentum/reversal (rank vs other coins), rebalanced daily
+XS mom lookback 24h (long top5/short bot5) IS 21-23: ann  -34.2%  sharpe -1.16 | OOS 24-26: ann  -28.7%  sharpe -1.32  turnover/yr 540x
+XS mom lookback 72h (long top5/short bot5) IS 21-23: ann   -4.1%  sharpe -0.14 | OOS 24-26: ann   -9.0%  sharpe -0.40  turnover/yr 316x
+XS mom lookback 168h (long top5/short bot5) IS 21-23: ann   16.1%  sharpe  0.54 | OOS 24-26: ann   -3.4%  sharpe -0.15  turnover/yr 212x
+XS mom lookback 336h (long top5/short bot5) IS 21-23: ann   14.6%  sharpe  0.50 | OOS 24-26: ann    5.6%  sharpe  0.25  turnover/yr 154x
+XS mom lookback 720h (long top5/short bot5) IS 21-23: ann   32.9%  sharpe  1.19 | OOS 24-26: ann  -18.2%  sharpe -0.84  turnover/yr 106x
+== 2. time-series trend (each coin vs its own past), daily rebalance
+TS mom 168h long/short                     IS 21-23: ann   50.8%  sharpe  0.74 | OOS 24-26: ann    8.4%  sharpe  0.15  turnover/yr 131x
+TS mom 168h long-only                      IS 21-23: ann   53.4%  sharpe  0.59 | OOS 24-26: ann  -13.5%  sharpe -0.21  turnover/yr 121x
+TS mom 720h long/short                     IS 21-23: ann   68.8%  sharpe  1.00 | OOS 24-26: ann    6.1%  sharpe  0.11  turnover/yr 58x
+TS mom 720h long-only                      IS 21-23: ann   31.3%  sharpe  0.34 | OOS 24-26: ann  -37.0%  sharpe -0.54  turnover/yr 58x
+TS mom 1440h long/short                    IS 21-23: ann   12.4%  sharpe  0.19 | OOS 24-26: ann   32.9%  sharpe  0.60  turnover/yr 40x
+TS mom 1440h long-only                     IS 21-23: ann    2.6%  sharpe  0.03 | OOS 24-26: ann   -8.9%  sharpe -0.14  turnover/yr 41x
+== 3. BTC lead-lag: alts follow BTC's last hour?
+alts long if BTC up last 1h                IS 21-23: ann -605.8%  sharpe -6.66 | OOS 24-26: ann -525.7%  sharpe -7.57  turnover/yr 9237x
+== 4. hour-of-day seasonality (learned in-sample, tested OOS)
+         0    1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23
+IS bp   2.8 -0.9 -3.6 -4.0  3.2  4.9  1.1  3.1 -2.5 -2.0  4.3 -0.0 -2.5  2.1 -5.7  3.5  1.8 -3.6  0.4 -2.1  0.7  1.9  2.5  2.8
+OOS bp -1.4 -1.5  1.4  2.4  1.7 -0.2 -1.9  0.0  1.1  2.0 -2.2 -0.1 -0.7 -5.0 -0.5  0.1 -0.0  1.4 -2.7 -0.9  0.2  4.6  3.4 -2.5
+corr IS vs OOS hourly means: -0.2
+day-of-week daily bp IS  [-44.0, 19.0, 23.0, 4.0, 18.0, 27.0, 11.0]
+day-of-week daily bp OOS [18.0, -54.0, 37.0, -33.0, 25.0, 27.0, -30.0]
+== 5. volatility compression -> breakout (each coin)
+squeeze breakout, hold 24h                 IS 21-23: ann   -4.4%  sharpe -0.07 | OOS 24-26: ann  -17.7%  sharpe -0.49  turnover/yr 281x
+plain 24h breakout (no squeeze), hold 24h  IS 21-23: ann  -86.4%  sharpe -1.15 | OOS 24-26: ann  -55.3%  sharpe -1.00  turnover/yr 545x
+== 6. short-term reversal after extreme hourly move (z>3)
+fade |z|>3, hold 4h                        IS 21-23: ann -178.6%  sharpe -1.85 | OOS 24-26: ann -130.2%  sharpe -1.92  turnover/yr 1344x
+follow |z|>3, hold 4h                      IS 21-23: ann   32.1%  sharpe  0.33 | OOS 24-26: ann   -8.4%  sharpe -0.12  turnover/yr 1344x
+fade |z|>4, hold 4h                        IS 21-23: ann  -54.5%  sharpe -0.61 | OOS 24-26: ann  -76.8%  sharpe -1.34  turnover/yr 684x
+follow |z|>4, hold 4h                      IS 21-23: ann   -7.2%  sharpe -0.08 | OOS 24-26: ann   23.1%  sharpe  0.40  turnover/yr 684x
+== 7. residual (vs BTC) reversal, daily
+residual reversal 24h (vs BTC)             IS 21-23: ann  -20.0%  sharpe -0.62 | OOS 24-26: ann  -20.6%  sharpe -0.88  turnover/yr 547x
+residual reversal 72h (vs BTC)             IS 21-23: ann  -33.3%  sharpe -1.01 | OOS 24-26: ann  -23.2%  sharpe -0.98  turnover/yr 321x

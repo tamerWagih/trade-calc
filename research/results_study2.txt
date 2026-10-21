@@ -1,0 +1,12 @@
+== gross, no costs
+lead-lag alts follow BTC 1h (gross)        IS 21-23: ann -149.4%  sharpe -1.64 | OOS 24-26: ann  -72.3%  sharpe -1.04  turnover/yr 9237x
+fade |z|>3 hold 4h (gross)                 IS 21-23: ann -105.4%  sharpe -1.09 | OOS 24-26: ann  -60.9%  sharpe -0.90  turnover/yr 1344x
+== slow trend, robustness across lookbacks, vol-scaled, rebalance weekly
+TS trend 30d L/S vol-scaled weekly         IS 21-23: ann   84.4%  sharpe  1.33 | OOS 24-26: ann   15.7%  sharpe  0.32  turnover/yr 24x
+TS trend 45d L/S vol-scaled weekly         IS 21-23: ann    8.6%  sharpe  0.13 | OOS 24-26: ann    3.0%  sharpe  0.06  turnover/yr 20x
+TS trend 60d L/S vol-scaled weekly         IS 21-23: ann    0.9%  sharpe  0.01 | OOS 24-26: ann    6.6%  sharpe  0.13  turnover/yr 18x
+TS trend 90d L/S vol-scaled weekly         IS 21-23: ann   -4.5%  sharpe -0.08 | OOS 24-26: ann   18.0%  sharpe  0.35  turnover/yr 15x
+TS trend 120d L/S vol-scaled weekly        IS 21-23: ann   -3.0%  sharpe -0.05 | OOS 24-26: ann    1.5%  sharpe  0.03  turnover/yr 11x
+TS trend 180d L/S vol-scaled weekly        IS 21-23: ann   10.3%  sharpe  0.23 | OOS 24-26: ann  -19.4%  sharpe -0.43  turnover/yr 12x
+== same, by calendar year (60d)
+{2021: -9.5, 2022: 24.0, 2023: -11.9, 2024: -10.0, 2025: 11.8, 2026: 16.3}
