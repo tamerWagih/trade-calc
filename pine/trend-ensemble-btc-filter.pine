@@ -1,0 +1,110 @@
+//@version=6
+// Trend Ensemble + BTC Filter (long-only, daily).
+// 9 Donchian breakout models vote. Each model goes long when the close breaks its N-day high
+// and goes flat when the close falls below the middle of its channel. Score = models long / 9.
+// Alts are held only while BTC's own score is at or above the filter level.
+// Position size = score x (target volatility / coin volatility), capped at max exposure.
+// Idea: Zarattini, Pagani, Barbon (2025) "Catching Crypto Trends". Use on the 1D chart.
+strategy("Trend Ensemble + BTC Filter",
+         overlay                 = true,
+         initial_capital         = 1000,
+         default_qty_type        = strategy.fixed,
+         commission_type         = strategy.commission.percent,
+         commission_value        = 0.05,
+         slippage                = 0,
+         pyramiding              = 100,
+         margin_long             = 0,
+         margin_short            = 0,
+         calc_on_every_tick      = false)
+
+// ───────────────── Inputs ─────────────────
+string grpE = "Trend Ensemble"
+int lb1 = input.int(5,   "Lookback 1", minval = 2, group = grpE, inline = "a")
+int lb2 = input.int(10,  "2",          minval = 2, group = grpE, inline = "a")
+int lb3 = input.int(20,  "3",          minval = 2, group = grpE, inline = "a")
+int lb4 = input.int(30,  "Lookback 4", minval = 2, group = grpE, inline = "b")
+int lb5 = input.int(60,  "5",          minval = 2, group = grpE, inline = "b")
+int lb6 = input.int(90,  "6",          minval = 2, group = grpE, inline = "b")
+int lb7 = input.int(150, "Lookback 7", minval = 2, group = grpE, inline = "c")
+int lb8 = input.int(250, "8",          minval = 2, group = grpE, inline = "c")
+int lb9 = input.int(360, "9",          minval = 2, group = grpE, inline = "c")
+
+string grpB = "BTC Filter"
+bool   useBtc   = input.bool(true, "Only hold while BTC is trending up", group = grpB)
+string btcSym   = input.symbol("BINANCE:BTCUSDT", "BTC symbol", group = grpB)
+int    btcMin   = input.int(5, "BTC models long (of 9) needed", minval = 1, maxval = 9, group = grpB)
+
+string grpS = "Sizing"
+float targetVol = input.float(50, "Target yearly volatility %", minval = 1, step = 5, group = grpS, tooltip = "Bigger = bigger positions. A coin with 100% yearly volatility gets half the size of one with 50%.")
+int   volLen    = input.int(60, "Volatility lookback (days)", minval = 10, group = grpS)
+float maxExpo   = input.float(100, "Max exposure % of equity", minval = 1, step = 10, group = grpS, tooltip = "100 = no leverage. 200 = up to 2x.")
+float rebalPct  = input.float(10, "Rebalance when size is off by % of equity", minval = 0, step = 1, group = grpS, tooltip = "Skips tiny size changes to save fees. Going in or out of the market always trades.")
+
+startDate     = input.time(timestamp("2021-01-01 00:00 +0000"), "Start Date")
+endDate       = input.time(timestamp("2030-12-31 23:59 +0000"), "End Date")
+isInDateRange = time >= startDate and time <= endDate
+
+string grpD = "Display"
+bool showTable = input.bool(true, "Show score table", group = grpD)
+bool showBg    = input.bool(true, "Color background by score", group = grpD)
+
+// ───────────────── Ensemble score ─────────────────
+// One Donchian model: 1 after a close above the prior N-day high, 0 after a close below the channel middle.
+f_model(int n) =>
+    var int state = 0
+    float up  = ta.highest(high, n)[1]
+    float dn  = ta.lowest(low, n)[1]
+    float mid = (up + dn) / 2
+    if not na(up)
+        state := close > up ? 1 : close < mid ? 0 : state
+    state
+
+f_score() =>
+    f_model(lb1) + f_model(lb2) + f_model(lb3) + f_model(lb4) + f_model(lb5) + f_model(lb6) + f_model(lb7) + f_model(lb8) + f_model(lb9)
+
+int score    = f_score()
+int btcScore = request.security(btcSym, "D", f_score(), lookahead = barmerge.lookahead_off)
+bool btcOn   = not useBtc or btcScore >= btcMin
+
+// ───────────────── Target position ─────────────────
+float vol      = ta.stdev(close / close[1] - 1, volLen) * math.sqrt(365) * 100
+float volScale = na(vol) or vol <= 0 ? 0.0 : math.min(1.0, targetVol / vol)
+float frac     = btcOn ? (score / 9.0) * volScale : 0.0
+frac          := math.min(frac, maxExpo / 100)
+
+float targetQty = isInDateRange and timeframe.isdaily ? strategy.equity * frac / close : 0.0
+float posQty    = strategy.position_size
+float diffQty   = targetQty - posQty
+bool  enterMkt  = posQty == 0 and targetQty > 0
+bool  exitMkt   = posQty > 0 and targetQty == 0
+bool  bigChange = math.abs(diffQty) * close > strategy.equity * rebalPct / 100
+
+if barstate.isconfirmed
+    if exitMkt
+        strategy.close_all(comment = "Exit")
+        alert("⚠️ EXIT - " + syminfo.ticker + " | score " + str.tostring(score) + "/9 | BTC " + str.tostring(btcScore) + "/9", alert.freq_once_per_bar_close)
+    else if targetQty > 0 and (enterMkt or bigChange)
+        if diffQty > 0
+            strategy.order("Buy", strategy.long, qty = diffQty, comment = enterMkt ? "Enter" : "Add")
+        else
+            strategy.order("Trim", strategy.short, qty = math.min(-diffQty, posQty), comment = "Trim")
+        alert((enterMkt ? "🟢 ENTER - " : "🔁 RESIZE - ") + syminfo.ticker +
+              " | target " + str.tostring(frac * 100, "#.#") + "% of equity" +
+              " | score " + str.tostring(score) + "/9 | BTC " + str.tostring(btcScore) + "/9", alert.freq_once_per_bar_close)
+
+// ───────────────── Display ─────────────────
+color bgCol = not btcOn ? color.new(color.gray, 90) : score >= 7 ? color.new(color.green, 80) : score >= 4 ? color.new(color.green, 90) : score >= 1 ? color.new(color.yellow, 92) : na
+bgcolor(showBg ? bgCol : na, title = "Score background")
+
+var table tb = table.new(position.top_right, 2, 5, bgcolor = color.new(color.black, 20), border_width = 1)
+if showTable and barstate.islast
+    table.cell(tb, 0, 0, "Coin score", text_color = color.white)
+    table.cell(tb, 1, 0, str.tostring(score) + " / 9", text_color = score >= 5 ? color.lime : score >= 1 ? color.yellow : color.red)
+    table.cell(tb, 0, 1, "BTC score", text_color = color.white)
+    table.cell(tb, 1, 1, str.tostring(btcScore) + " / 9" + (btcOn ? "  ON" : "  OFF"), text_color = btcOn ? color.lime : color.red)
+    table.cell(tb, 0, 2, "Volatility", text_color = color.white)
+    table.cell(tb, 1, 2, str.tostring(vol, "#") + "%/yr", text_color = color.white)
+    table.cell(tb, 0, 3, "Target size", text_color = color.white)
+    table.cell(tb, 1, 3, str.tostring(frac * 100, "#.#") + "% of equity", text_color = color.white)
+    table.cell(tb, 0, 4, timeframe.isdaily ? "Chart" : "⚠ Use 1D chart", text_color = timeframe.isdaily ? color.white : color.orange)
+    table.cell(tb, 1, 4, timeframe.period, text_color = color.white)
