@@ -93,6 +93,14 @@ if barstate.isconfirmed
               " | score " + str.tostring(score) + "/9 | BTC " + str.tostring(btcScore) + "/9", alert.freq_once_per_bar_close)
 
 // ───────────────── Display ─────────────────
+float midUp = ta.highest(high, lb3)[1]
+float midDn = ta.lowest(low, lb3)[1]
+plot(midUp, "20-day high", color.new(color.teal, 40))
+plot(midDn, "20-day low",  color.new(color.maroon, 40))
+plot(score,    "Coin score (of 9)", display = display.data_window)
+plot(btcScore, "BTC score (of 9)",  display = display.data_window)
+plot(frac * 100, "Target size %",   display = display.data_window)
+
 color bgCol = not btcOn ? color.new(color.gray, 90) : score >= 7 ? color.new(color.green, 80) : score >= 4 ? color.new(color.green, 90) : score >= 1 ? color.new(color.yellow, 92) : na
 bgcolor(showBg ? bgCol : na, title = "Score background")
 
